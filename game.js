@@ -8,20 +8,38 @@ const TEXTO_CARTA_FINAL = `Você completou a missão Floripa...\npassou pelas te
 const GAME_TITLE = "Missão Floripa:\nA Nutri Aventureira";
 
 const CLASS_CONFIGS = {
-  guerreira: { name:"Nutri Guerreira", short:"Guerreira", joke:"Espada de cenoura equipada. Coxinha nenhuma passa.", attackColor:0xff8a3d, trailColor:0xffb86b, speed:205, dashSpeed:560, maxHp:6, maxMana:100, attackDamage:2, specialDamage:4, specialStyle:"cenoura" },
-  marmita:   { name:"Maga da Marmita", short:"Marmita",   joke:"Quem tem marmita brilhante não teme tentação.",  attackColor:0xffe066, trailColor:0xfff4a8, speed:190, dashSpeed:520, maxHp:5, maxMana:140, attackDamage:1.7, specialDamage:5.2, specialStyle:"marmita" },
-  rainha:    { name:"Rainha de Floripa", short:"Floripa", joke:"Dash de praia, brilho no cabelo e coração crítico.", attackColor:0xff6fb1, trailColor:0x44d4ff, speed:218, dashSpeed:650, maxHp:5, maxMana:105, attackDamage:1.8, specialDamage:4.3, specialStyle:"coracao" }
+  guerreira: {
+    name:"Guerreira da Cenoura", short:"Cenoura", weapon:"carrot", weaponEmoji:"🥕",
+    joke:"Arremessa lâminas de cenoura afiadas. Rápida e certeira.",
+    weaponDesc:"Espada de cenoura: lâmina veloz em linha reta.",
+    attackColor:0xff8a3d, trailColor:0xffb86b, speed:205, dashSpeed:560, maxHp:7, maxMana:100,
+    attackDamage:2.4, attackCooldown:300, specialDamage:4, specialStyle:"cenoura"
+  },
+  estrategista: {
+    name:"Nutri Estrategista", short:"Estrategista", weapon:"clipboard", weaponEmoji:"📋",
+    joke:"Lança a prancheta giratória que volta pra mão. Atravessa tudo.",
+    weaponDesc:"Prancheta-bumerangue: gira, atravessa inimigos e volta.",
+    attackColor:0x4fe39a, trailColor:0xbfffe0, speed:196, dashSpeed:540, maxHp:6, maxMana:120,
+    attackDamage:1.8, attackCooldown:560, specialDamage:5, specialStyle:"marmita"
+  },
+  sereia: {
+    name:"Sereia de Floripa", short:"Sereia", weapon:"trident", weaponEmoji:"🔱",
+    joke:"Tridente que cospe rajadas d'água em sequência. Hidratação ofensiva.",
+    weaponDesc:"Tridente: rajada rápida de 3 jatos d'água.",
+    attackColor:0x44d4ff, trailColor:0x9fe8ff, speed:218, dashSpeed:650, maxHp:6, maxMana:110,
+    attackDamage:1.2, attackCooldown:230, specialDamage:4.3, specialStyle:"agua"
+  }
 };
 
 const LEVELS = {
-  1:{ name:"Fase 1 — Arrumando as malas",    hudName:"Fase 1", theme:"room",   message:"Partiu Floripa, mas antes precisa sobreviver à bagunça!", objective:"Colete mala, protetor solar e passagem.", nextMessage:"Aviãozinho liberado! Floripa chamou." },
+  1:{ name:"Fase 1 — Arrumando as malas",    hudName:"Fase 1", theme:"room",   message:"Partiu Floripa, mas antes precisa sobreviver à bagunça!", objective:"Sobreviva às 2 ondas e derrote o chefe!", nextMessage:"Aviãozinho liberado! Floripa chamou." },
   2:{ name:"Fase 2 — Cheguei em Floripa",    hudName:"Fase 2", theme:"beach",  message:"Cuidado: saudade nível hard detectada!",                  objective:"Derrote os bolinhos e atravesse a praia.",  nextMessage:"Praia dominada com estilo nutricional." },
   3:{ name:"Fase 3 — A Nutri contra as tentações", hudName:"Fase 3", theme:"market", message:"Monte a marmita lendária e vença as tentações.",    objective:"Colete arroz, frango, salada, legumes e água.", nextMessage:"Marmita lendária criada com sucesso!" },
   4:{ name:"Fase 4 — Portal da Surpresa",    hudName:"Fase 4", theme:"night",  message:"O Monstro da Saudade apareceu. Agora é pessoal.",          objective:"Derrote o boss Pizza da Saudade.",      nextMessage:"Saudade tentou, mas perdeu." }
 };
 
 const gameState = { selectedClassKey:"guerreira", run:null };
-const inputState = { joyX:0, joyY:0, attack:false, attackPressed:false, dash:false, dashPressed:false, special:false, specialPressed:false, open:false, openPressed:false };
+const inputState = { joyX:0, joyY:0, attack:false, attackPressed:false, dash:false, dashPressed:false, special:false, specialPressed:false, catAttack:false, catAttackPressed:false, open:false, openPressed:false };
 
 function consumeInput(action) {
   const key = `${action}Pressed`;
@@ -32,6 +50,15 @@ function consumeInput(action) {
 function setMobileControlsVisible(v) {
   const el = document.getElementById("mobile-controls");
   if (el) el.classList.toggle("hidden", !v);
+}
+
+// Marca o botão do gato como em recarga (feedback visual) pelo tempo do cooldown
+function setCatButtonCooldown(ms) {
+  const btn = document.getElementById("btn-cat");
+  if (!btn) return;
+  btn.classList.add("on-cooldown");
+  clearTimeout(btn._cdTimer);
+  btn._cdTimer = setTimeout(() => btn.classList.remove("on-cooldown"), ms);
 }
 
 function vibrate(ms=18) { if(navigator.vibrate) navigator.vibrate(ms); }
@@ -57,7 +84,7 @@ const SoundFX = {
 // =========================================================
 window.addEventListener("DOMContentLoaded", ()=>{
   const joy=document.getElementById("joystick"), knob=document.getElementById("joystick-knob");
-  const btnA=document.getElementById("btn-attack"), btnD=document.getElementById("btn-dash"), btnS=document.getElementById("btn-special");
+  const btnA=document.getElementById("btn-attack"), btnD=document.getElementById("btn-dash"), btnS=document.getElementById("btn-special"), btnCat=document.getElementById("btn-cat");
 
   const resetJoy=()=>{ inputState.joyX=0; inputState.joyY=0; if(knob) knob.style.transform="translate(-50%,-50%)"; };
   const updateJoy=(e)=>{
@@ -82,7 +109,7 @@ window.addEventListener("DOMContentLoaded", ()=>{
     const up=e=>{ e.preventDefault(); inputState[act]=false; btn.classList.remove("is-pressed"); };
     btn.addEventListener("pointerup",up); btn.addEventListener("pointercancel",up); btn.addEventListener("pointerleave",up);
   };
-  wire(btnA,"attack"); wire(btnD,"dash"); wire(btnS,"special");
+  wire(btnA,"attack"); wire(btnD,"dash"); wire(btnS,"special"); wire(btnCat,"catAttack");
   document.body.addEventListener("pointerdown",()=>SoundFX.unlock(),{passive:true});
 });
 
@@ -554,6 +581,134 @@ function buildAllTextures(scene) {
     g.fillStyle(0x5a3318,0.45); g.fillEllipse(14,13,9,5); g.fillEllipse(46,47,9,5);
   });
 
+  // ─── AREIA DE PRAIA (fase 2) — tons de bege quentes, sem repetição óbvia ───
+  CT(scene,"sand_floor_gen",64,64,g=>{
+    g.fillStyle(0xf2d59b,1); g.fillRect(0,0,64,64);
+    // Manchas suaves de areia molhada/seca
+    g.fillStyle(0xe8c47e,0.55); g.fillEllipse(16,18,30,22); g.fillEllipse(48,46,28,20);
+    g.fillStyle(0xf7e1b0,0.5);  g.fillEllipse(46,14,22,16); g.fillEllipse(14,50,24,18);
+    // Grãozinhos espalhados
+    g.fillStyle(0xc9a567,0.5);
+    for(let i=0;i<46;i++) g.fillRect((i*37)%64,(i*53)%64,2,2);
+    g.fillStyle(0xfff4d6,0.5);
+    for(let i=0;i<30;i++) g.fillRect((i*29+11)%64,(i*41+7)%64,1,1);
+    // Ondulações de maré
+    g.lineStyle(1,0xddb877,0.4);
+    for(let i=0;i<5;i++) g.lineBetween(0,8+i*14,64,12+i*14);
+  });
+
+  // ─── PISO DE MERCADO (fase 3) — ladrilho claro de supermercado ───
+  CT(scene,"tile_floor_gen",64,64,g=>{
+    g.fillStyle(0xeef1f4,1); g.fillRect(0,0,64,64);
+    // 4 ladrilhos com leve variação de tom
+    const shades=[0xe6eaef,0xf3f5f8,0xe9edf1,0xf0f2f5];
+    [[0,0],[32,0],[0,32],[32,32]].forEach(([tx,ty],i)=>{ g.fillStyle(shades[i],1); g.fillRect(tx+1,ty+1,30,30); });
+    // Rejunte (linhas entre ladrilhos)
+    g.lineStyle(2,0xc4ccd6,0.9);
+    g.lineBetween(32,0,32,64); g.lineBetween(0,32,64,32);
+    g.lineStyle(1,0xb4bcc7,0.6);
+    g.strokeRect(0,0,64,64);
+    // Brilho de piso encerado
+    g.fillStyle(0xffffff,0.22); g.fillEllipse(16,16,12,7); g.fillEllipse(48,48,12,7);
+  });
+
+  // ─── CHÃO NOTURNO MÁGICO (fase 4) — roxo profundo com brilho ───
+  CT(scene,"night_floor_gen",64,64,g=>{
+    g.fillStyle(0x191334,1); g.fillRect(0,0,64,64);
+    g.fillStyle(0x231a47,0.7); g.fillEllipse(18,20,34,26); g.fillEllipse(48,46,30,24);
+    // Poeira estelar fixa no chão
+    g.fillStyle(0x6b5bbf,0.45);
+    for(let i=0;i<24;i++) g.fillRect((i*43)%64,(i*47)%64,2,2);
+    g.fillStyle(0xb9a9ff,0.55);
+    for(let i=0;i<14;i++) g.fillCircle((i*53+9)%64,(i*31+5)%64,1);
+    // Veios mágicos sutis
+    g.lineStyle(1,0x3a2d6e,0.5); g.lineBetween(0,40,64,34); g.lineBetween(0,12,64,18);
+  });
+
+  // ─── PARTÍCULA DE AURA (labareda macia p/ efeito Dragon Ball) ───
+  CT(scene,"aura_particle",16,16,g=>{
+    g.fillStyle(0xffffff,0.22); g.fillCircle(8,8,8);
+    g.fillStyle(0xffffff,0.45); g.fillCircle(8,8,5.5);
+    g.fillStyle(0xffffff,0.85); g.fillCircle(8,8,3);
+    g.fillStyle(0xffffff,1);    g.fillCircle(8,8,1.5);
+  });
+
+  // ─── OBSTÁCULOS TEMÁTICOS (gerados, coerentes com cada fase) ───
+  // Praia: pedras
+  CT(scene,"obs_rock",64,50,g=>{
+    g.fillStyle(0x000000,0.18); g.fillEllipse(32,46,54,8);
+    g.fillStyle(0x7e848c,1); g.fillEllipse(23,32,34,28);
+    g.fillStyle(0x9097a0,1); g.fillEllipse(44,28,32,28);
+    g.fillStyle(0xb0b7c0,0.55); g.fillEllipse(40,22,14,10);
+    g.fillStyle(0x676d75,0.5);  g.fillEllipse(22,40,16,7);
+    g.lineStyle(1,0x565b62,0.5); g.lineBetween(34,18,30,40);
+    g.fillStyle(0x6aa84f,0.5); g.fillEllipse(48,20,12,5); // musguinho
+  });
+  // Praia: coqueiro
+  CT(scene,"obs_palm",60,86,g=>{
+    g.fillStyle(0x000000,0.18); g.fillEllipse(30,82,42,8);
+    g.fillStyle(0xa9794a,1); g.fillRoundedRect(25,34,10,48,3);
+    g.fillStyle(0x8a6038,0.6); g.fillRect(25,34,4,48);
+    g.lineStyle(1,0x7a5430,0.7); for(let i=0;i<5;i++) g.lineBetween(25,44+i*8,35,44+i*8);
+    g.fillStyle(0x2f9d40,1);
+    g.fillEllipse(30,28,52,14); g.fillEllipse(15,20,30,12); g.fillEllipse(45,20,30,12);
+    g.fillEllipse(23,13,22,12); g.fillEllipse(37,13,22,12);
+    g.fillStyle(0x49bd57,0.7); g.fillEllipse(30,23,34,10);
+    g.fillStyle(0x5e3a1e,1); g.fillCircle(25,34,4); g.fillCircle(34,35,4); g.fillCircle(30,32,4);
+  });
+  // Mercado: prateleira com produtos
+  CT(scene,"obs_shelf",92,64,g=>{
+    g.fillStyle(0x000000,0.18); g.fillEllipse(46,60,84,8);
+    g.fillStyle(0xc9ccd1,1); g.fillRoundedRect(4,6,84,52,3);
+    g.fillStyle(0xa9adb4,1); g.fillRect(4,6,84,4);
+    g.fillStyle(0x8f939a,1); g.fillRect(6,26,80,4); g.fillRect(6,46,80,4);
+    const prod=[0xff6b6b,0xffd166,0x6ad06a,0x6bb8ff,0xff9ec8];
+    for(let i=0;i<5;i++){ g.fillStyle(prod[i],1); g.fillRect(11+i*15,14,11,11); g.fillStyle(prod[(i+2)%5],1); g.fillRect(11+i*15,34,11,11); }
+    g.lineStyle(2,0x82868d,0.8); g.strokeRoundedRect(4,6,84,52,3);
+  });
+  // Mercado: caixote de feira com frutas
+  CT(scene,"obs_crate",56,54,g=>{
+    g.fillStyle(0x000000,0.18); g.fillEllipse(28,50,46,7);
+    g.fillStyle(0xff6b6b,1); g.fillCircle(16,13,7); g.fillStyle(0xffd166,1); g.fillCircle(29,10,7); g.fillStyle(0x6ad06a,1); g.fillCircle(42,13,7);
+    g.fillStyle(0xb5803f,1); g.fillRoundedRect(6,16,44,34,3);
+    g.fillStyle(0xa06d30,1); for(let i=0;i<3;i++) g.fillRect(8,20+i*10,40,3);
+    g.lineStyle(2,0x7d5424,0.8); g.strokeRoundedRect(6,16,44,34,3); g.lineBetween(28,16,28,50);
+  });
+  // Mercado: balcão refrigerado
+  CT(scene,"obs_freezer",96,60,g=>{
+    g.fillStyle(0x000000,0.18); g.fillEllipse(48,56,88,8);
+    g.fillStyle(0xbcd4e6,0.95); g.fillRoundedRect(8,8,80,16,4);
+    g.fillStyle(0xffffff,0.4); g.fillRect(12,10,30,9);
+    g.fillStyle(0xdfe6ec,1); g.fillRoundedRect(4,22,88,32,4);
+    g.fillStyle(0x9fb6c9,1); g.fillRect(4,42,88,4);
+    g.lineStyle(2,0x9aa6b2,0.8); g.strokeRoundedRect(4,22,88,32,4);
+    g.fillStyle(0xffffff,0.7); g.fillCircle(22,34,3); g.fillCircle(70,36,3); g.fillCircle(50,30,2);
+  });
+  // Noite: cristal mágico (claro p/ aceitar tint de cor)
+  CT(scene,"obs_crystal",52,70,g=>{
+    g.fillStyle(0x000000,0.22); g.fillEllipse(26,66,38,7);
+    g.fillStyle(0xffffff,0.95); g.fillTriangle(26,4,9,42,43,42); g.fillTriangle(9,42,43,42,26,66);
+    g.fillStyle(0xdfe8ff,0.9); g.fillTriangle(26,4,18,42,26,42);
+    g.fillStyle(0xb9c8ee,0.8); g.fillTriangle(26,42,43,42,26,66);
+    g.fillStyle(0xffffff,1); g.fillRect(24,12,3,22);
+    g.fillStyle(0xeaf0ff,0.95); g.fillTriangle(8,46,3,62,15,62); g.fillTriangle(44,48,37,64,49,64);
+  });
+
+  // ─── PLAQUINHA DE MADEIRA (interativa) ───
+  CT(scene,"sign_wood",60,64,g=>{
+    g.fillStyle(0x000000,0.18); g.fillEllipse(30,60,32,6);
+    // estaca
+    g.fillStyle(0x8a5a2e,1); g.fillRect(26,32,8,26);
+    g.fillStyle(0x6f4622,0.6); g.fillRect(26,32,3,26);
+    // placa
+    g.fillStyle(0x7d5424,1); g.fillRoundedRect(5,7,50,32,5);  // moldura
+    g.fillStyle(0xc9954c,1);  g.fillRoundedRect(8,10,44,26,4); // tábua
+    g.fillStyle(0xb5803f,1);  g.fillRect(8,20,44,3);            // ripa
+    g.lineStyle(1,0x9a6a32,0.7); g.lineBetween(8,15,52,15); g.lineBetween(8,30,52,30);
+    // parafusos
+    g.fillStyle(0x5e3a1e,1); g.fillCircle(12,13,1.6); g.fillCircle(48,13,1.6); g.fillCircle(12,33,1.6); g.fillCircle(48,33,1.6);
+  });
+
   // ─── SLASH DE ATAQUE NORMAL ─────────────────────────────────────────────
   CT(scene,"attack_slash",48,48,g=>{
     // Brilho externo
@@ -583,6 +738,44 @@ function buildAllTextures(scene) {
     g.fillStyle(0xffe066,1); g.fillCircle(16,12,3.5);
     g.fillStyle(0xff6b6b,1); g.fillRect(12,17,7,3);
     g.fillStyle(0xff9900,1); g.fillCircle(13,11,2);
+  });
+
+  // ─── ARMAS / PROJÉTEIS POR CLASSE ───
+  // Lâmina de cenoura voadora (aponta para +x; gira pela direção do tiro)
+  CT(scene,"proj_carrot",32,18,g=>{
+    g.fillStyle(0x3dba4e,1); g.fillTriangle(8,9,0,3,8,8); g.fillTriangle(8,9,0,15,8,10); // folhas
+    g.fillStyle(0xff8a3d,1); g.fillTriangle(8,3,8,15,31,9);  // corpo
+    g.fillStyle(0xffb579,0.75); g.fillTriangle(9,5,9,9,24,8.5);
+    g.lineStyle(1,0xe0701f,0.7); g.lineBetween(14,6,16,11); g.lineBetween(20,7,21,10);
+    g.fillStyle(0xffffff,0.7); g.fillCircle(11,7,1.4);
+  });
+  // Prancheta (bumerangue)
+  CT(scene,"proj_clipboard",32,38,g=>{
+    g.fillStyle(0x000000,0.12); g.fillRoundedRect(5,6,26,32,3);
+    g.fillStyle(0x8a5a2e,1); g.fillRoundedRect(3,4,26,32,3);
+    g.fillStyle(0xfdfdf5,1); g.fillRoundedRect(6,8,20,26,2);
+    g.fillStyle(0xb0b6bd,1); g.fillRoundedRect(11,2,10,6,2);
+    g.fillStyle(0x8f959c,1); g.fillRect(13,4,6,3);
+    g.lineStyle(1,0x6bb8ff,0.8); for(let i=0;i<5;i++) g.lineBetween(8,13+i*4,24,13+i*4);
+    g.lineStyle(2,0x4fe39a,1); g.beginPath(); g.moveTo(9,30); g.lineTo(12,33); g.lineTo(18,26); g.strokePath();
+  });
+  // Jato d'água (aponta para +x)
+  CT(scene,"proj_water",28,16,g=>{
+    g.fillStyle(0x9fe8ff,0.55); g.fillEllipse(14,8,26,13);
+    g.fillStyle(0x44d4ff,1);    g.fillEllipse(13,8,20,8);
+    g.fillStyle(0x1fa8e0,1);    g.fillTriangle(22,4,22,12,28,8);
+    g.fillStyle(0xffffff,0.9);  g.fillEllipse(9,7,7,3.5);
+  });
+  // Tridente (arma equipada da Sereia; aponta para cima)
+  CT(scene,"weap_trident",20,42,g=>{
+    g.fillStyle(0xffd166,1); g.fillRect(8,12,4,28);
+    g.fillStyle(0xe0a800,0.6); g.fillRect(8,12,2,28);
+    g.fillStyle(0x9fe8ff,1);
+    g.fillTriangle(10,0,6,13,14,13);              // ponta central
+    g.fillRect(2,9,3,5);  g.fillTriangle(3.5,2,2,9,5,9);   // ponta esq
+    g.fillRect(15,9,3,5); g.fillTriangle(16.5,2,15,9,18,9); // ponta dir
+    g.fillStyle(0x44d4ff,1); g.fillRect(3,12,14,3);
+    g.fillStyle(0xffffff,0.8); g.fillCircle(10,6,1.5);
   });
 
   // ─── PORTAL + BAÚ ──────────────────────────────────────────
@@ -758,7 +951,7 @@ class PreloaderScene extends Phaser.Scene {
     [
       "fi_burger:food/15_burger.png",   "fi_fries:food/44_frenchfries.png",
       "fi_pizza:food/81_pizza.png",     "fi_icecream:food/57_icecream.png",
-      "fi_cake:food/30_chocolatecake.png", "fi_dump:food/37_dumplings.png",
+      "fi_cake:food/30_chocolatecake.png", "fi_dump:food/36_dumplings.png",
       "fi_salad:food/40_eggsalad.png",  "fi_chicken:food/85_roastedchicken.png",
       "fi_strawb:food/90_strawberrycake.png", "fi_bowl:food/04_bowl.png"
     ].forEach(s=>{ const [k,p]=s.split(":"); this.load.image(k,p); });
@@ -775,39 +968,74 @@ class PreloaderScene extends Phaser.Scene {
 function spawnCatPet(scene, player) {
   const hasCatReal = scene.textures.exists("cat_real");
   const texKey   = hasCatReal ? "cat_real" : "cat_fallback";
-  const catScale = hasCatReal ? 1.5 : 1.5;
+  const catScale = 1.6;
 
-  const cat = scene.add.sprite(player.x - 60, player.y + 20, texKey)
-    .setDepth(19).setScale(catScale);
+  const cat = scene.add.sprite(player.x - 60, player.y + 30, texKey)
+    .setDepth(19).setScale(catScale).setOrigin(0.5, 1); // origem nos pés → squash natural
 
   buildCatAnims(scene);
   if (scene.anims.exists("cat_idle")) cat.play("cat_idle");
 
-  const shadow = scene.add.ellipse(cat.x, cat.y + 15, 22, 7, 0x000000, 0.22).setDepth(18);
+  const shadow = scene.add.ellipse(cat.x, cat.y, 24, 7, 0x000000, 0.22).setDepth(18);
   cat._shadow = shadow;
+  // Posição "base" no chão — o hop é um offset visual sobre ela (não acumula drift)
+  cat._baseX = cat.x;
+  cat._baseY = cat.y;
+  cat._attackPunch = 0;   // impulso visual (squash) quando o gato ataca
+  cat._lungeX = 0; cat._lungeY = 0; // investida na direção do golpe (decai)
+  cat._attackSpin = 0;    // giro de ataque (decai)
+  cat._nextAttack  = 0;   // cooldown de ataque automático
+  cat._nextCommand = 0;   // cooldown da ORDEM de ataque (botão)
+  cat._commandedTarget = null; // inimigo alvo quando recebe ordem de ataque
 
-  // Gato mantém distância mínima de 60px — quando longe corre para alcançar
-  cat.follow = function(px, py) {
-    const dist = Phaser.Math.Distance.Between(this.x, this.y, px, py);
-    const MIN  = 60;
+  cat.follow = function(px, py, minDist) {
+    const targetX = px, targetY = py + 26;
+    const dist = Phaser.Math.Distance.Between(this._baseX, this._baseY, targetX, targetY);
+    const MIN  = minDist || 56;
 
+    let moving = false;
     if (dist > MIN) {
-      const dx = this.x - px, dy = this.y - py, len = Math.hypot(dx, dy) || 1;
-      const tx = px + (dx/len)*MIN, ty = py + (dy/len)*MIN;
-      const lerpSpeed = dist > 160 ? 0.14 : 0.065;
-      this.x = Phaser.Math.Linear(this.x, tx, lerpSpeed);
-      this.y = Phaser.Math.Linear(this.y, ty, lerpSpeed);
+      moving = true;
+      const dx = this._baseX - targetX, dy = this._baseY - targetY, len = Math.hypot(dx, dy) || 1;
+      const tx = targetX + (dx/len)*MIN, ty = targetY + (dy/len)*MIN;
+      const lerpSpeed = dist > 150 ? 0.17 : 0.09;
+      this._baseX = Phaser.Math.Linear(this._baseX, tx, lerpSpeed);
+      this._baseY = Phaser.Math.Linear(this._baseY, ty, lerpSpeed);
     }
 
-    this.setFlipX(this.x < px);
-    this.setScale(dist > 160 ? catScale*1.05 : catScale);
+    this.setFlipX(this._baseX < px);
 
-    // Bob de caminhada quando longe, bob suave quando parado
-    this.y += dist > MIN * 0.8
-      ? Math.sin(scene.time.now / 140) * 1.3
-      : Math.sin(scene.time.now / 400) * 0.5;
+    const t = scene.time.now;
+    const punch = this._attackPunch;
+    let rot;
+    if (moving) {
+      // Trote: pulinho rítmico + squash/stretch (sensação de patas) + balanço
+      const phase  = t / 85;
+      const hop    = Math.abs(Math.sin(phase)) * 8;          // pulo (sempre ≥ 0)
+      const squash = 1 + Math.sin(phase * 2) * 0.09;          // estica/comprime
+      this.y = this._baseY - hop;
+      this.setScale(catScale / squash * (1+punch), catScale * squash * (1+punch));
+      rot = Math.sin(phase) * 0.11;
+      shadow.setScale(1 - hop/16, 1 - hop/26);                // sombra encolhe no alto do pulo
+    } else {
+      // Parado: respiração suave
+      const breathe = 1 + Math.sin(t / 380) * 0.05;
+      this.y = this._baseY + Math.sin(t / 400) * 0.6;
+      this.setScale(catScale * (1+punch), catScale * breathe * (1+punch));
+      rot = 0;
+      shadow.setScale(1, 1);
+    }
+    // Investida + giro de ataque (sobrepõem o movimento normal e decaem)
+    this.x = this._baseX + this._lungeX;
+    this.y = this.y + this._lungeY;
+    this.rotation = rot + this._attackSpin;
 
-    shadow.setPosition(this.x, this.y + 15);
+    if (this._attackPunch > 0.01) this._attackPunch *= 0.82; else this._attackPunch = 0;
+    this._lungeX *= 0.78; this._lungeY *= 0.78; this._attackSpin *= 0.80;
+    if (Math.abs(this._lungeX) < 0.3) this._lungeX = 0;
+    if (Math.abs(this._lungeY) < 0.3) this._lungeY = 0;
+    if (Math.abs(this._attackSpin) < 0.01) this._attackSpin = 0;
+    shadow.setPosition(this._baseX, this._baseY + 2);
   };
 
   return cat;
@@ -822,34 +1050,82 @@ class MenuScene extends Phaser.Scene {
   create(){
     setMobileControlsVisible(false);
     buildAllTextures(this);
+    buildPlayerAnims(this);
+    buildCatAnims(this);
+    const W=this.scale.width, H=this.scale.height, cx=centerX(this), cy=centerY(this);
     addBeachBackdrop(this);
 
-    const won = localStorage.getItem("missaoFloripaZerou")==="sim";
-    addPixelText(this,centerX(this),centerY(this)-145,GAME_TITLE,Math.min(42,Math.max(28,this.scale.width/12)),"#fff8fb");
-    addPixelText(this,centerX(this),centerY(this)-55,"Uma viagem, muitos obstáculos\ne uma surpresa no final...",18,"#ffffff");
-    if(won) addPixelText(this,centerX(this),centerY(this)+8,"Save secreto encontrado: ela já zerou essa missão 💖",15,"#fff4a8");
+    // Corações/emojis subindo continuamente (clima fofo)
+    this.time.addEvent({delay:650,loop:true,callback:()=>{
+      const h=this.add.text(Phaser.Math.Between(20,W-20),H+20,["❤","💖","✨","🐱"][Phaser.Math.Between(0,3)],{fontSize:`${Phaser.Math.Between(15,27)}px`}).setOrigin(0.5).setDepth(3).setAlpha(0.6);
+      this.tweens.add({targets:h,y:-30,x:h.x+Phaser.Math.Between(-40,40),alpha:0,rotation:Phaser.Math.FloatBetween(-0.6,0.6),duration:Phaser.Math.Between(4200,7000),onComplete:()=>h.destroy()});
+    }});
 
-    addMenuButton(this,centerX(this),centerY(this)+72,"🌟 Começar aventura",()=>this.scene.start("ClassSelectScene"),286,60,0xff6fb1);
-    addMenuButton(this,centerX(this),centerY(this)+143,"📖 Como jogar",()=>this.scene.start("HowToScene"),250,56,0x44a7ff);
+    // Título com brilho pulsante (interativo = easter egg)
+    const title=addPixelText(this,cx,cy-150,GAME_TITLE,Math.min(42,Math.max(28,W/12)),"#fff8fb");
+    this.tweens.add({targets:title,scale:1.04,yoyo:true,repeat:-1,duration:1400,ease:"Sine.easeInOut"});
+    addPixelText(this,cx,cy-64,"Uma viagem, muitos obstáculos\ne uma surpresa no final...",16,"#ffffff");
+    const won=localStorage.getItem("missaoFloripaZerou")==="sim";
+    if(won) addPixelText(this,cx,cy-12,"Ela já zerou essa missão 💖",14,"#fff4a8");
 
-    // Gato decorativo animado no menu
-    buildCatAnims(this);
-    const catTex = this.textures.exists("cat_real") ? "cat_real" : "cat_fallback";
-    const dcat = this.add.sprite(centerX(this)-110, centerY(this)+68, catTex).setScale(2.8).setDepth(5);
+    addMenuButton(this,cx,cy+62,"🌟 Começar aventura",()=>this.scene.start("ClassSelectScene"),286,60,0xff6fb1);
+    addMenuButton(this,cx,cy+133,"📖 Como jogar",()=>this.scene.start("HowToScene"),250,54,0x44a7ff);
+
+    // Nutri animada abaixo dos botões (não cobre os botões)
+    const ptex=this.textures.exists("fa_walk_down")?"fa_walk_down":"player";
+    const nutri=this.add.sprite(cx+120,H-108,ptex).setScale(3).setDepth(5);
+    if(this.anims.exists("player_idle_down")) nutri.play("player_idle_down");
+    this.tweens.add({targets:nutri,y:nutri.y-6,yoyo:true,repeat:-1,duration:1200,ease:"Sine.easeInOut"});
+
+    // GATO clicável — easter egg de cliques
+    const catTex=this.textures.exists("cat_real")?"cat_real":"cat_fallback";
+    const dcat=this.add.sprite(cx-120,H-108,catTex).setScale(2.8).setDepth(5).setInteractive({useHandCursor:true});
     if(this.anims.exists("cat_idle")) dcat.play("cat_idle");
-    this.tweens.add({targets:dcat, y:dcat.y-7, yoyo:true, repeat:-1, duration:700, ease:"Sine.easeInOut"});
-
-    // Avião animado
-    const plane=this.add.text(-40,75,"✈️",{fontSize:"34px"}).setOrigin(0.5);
-    this.tweens.add({targets:plane,x:this.scale.width+60,y:105,duration:6000,repeat:-1,ease:"Sine.easeInOut"});
-
-    // Itens de comida flutuantes decorativos (dos arquivos reais se carregados)
-    const foodKeys=["fi_burger","fi_sushi","fi_ramen","fi_salad"].filter(k=>this.textures.exists(k));
-    foodKeys.forEach((k,i)=>{
-      const fx=this.add.image(Phaser.Math.Between(20,this.scale.width-20), Phaser.Math.Between(20,this.scale.height-20),k)
-        .setScale(1.5).setAlpha(0.18).setDepth(2);
-      this.tweens.add({targets:fx,y:fx.y-20,alpha:0.28,yoyo:true,repeat:-1,duration:1800+i*400,ease:"Sine.easeInOut"});
+    this.tweens.add({targets:dcat,y:dcat.y-7,yoyo:true,repeat:-1,duration:700,ease:"Sine.easeInOut"});
+    this._catClicks=0;
+    const catMsgs=["miau! 🐱","prrr... 😺","cadê o petisco? 🐟","miaaau! 💕","ronronando..."];
+    dcat.on("pointerdown",()=>{
+      SoundFX.tone(680+Math.random()*220,0.06,"sine",0.02);
+      this.tweens.add({targets:dcat,scaleX:2.5,scaleY:3.1,duration:90,yoyo:true});
+      const fala=this.add.text(dcat.x,dcat.y-52,catMsgs[this._catClicks%catMsgs.length],{fontSize:"14px",color:"#fff",stroke:"#a0408a",strokeThickness:4}).setOrigin(0.5).setDepth(20);
+      this.tweens.add({targets:fala,y:fala.y-18,alpha:0,duration:900,onComplete:()=>fala.destroy()});
+      for(let i=0;i<4;i++){ const h=this.add.text(dcat.x,dcat.y-20,"❤",{fontSize:"14px"}).setOrigin(0.5).setDepth(20); const a=Math.random()*Math.PI*2; this.tweens.add({targets:h,x:h.x+Math.cos(a)*40,y:h.y+Math.sin(a)*40,alpha:0,duration:700,onComplete:()=>h.destroy()}); }
+      if(++this._catClicks===7) this.showEasterEgg('🐾 Segredo do gatinho:\n"A nutri mais incrível do mundo\né você. Bora pra Floripa! 💖"');
     });
+
+    // Avião cruzando o céu
+    const plane=this.add.text(-40,72,"✈️",{fontSize:"34px"}).setOrigin(0.5).setDepth(4);
+    this.tweens.add({targets:plane,x:W+60,y:102,duration:6000,repeat:-1,ease:"Sine.easeInOut"});
+
+    // EASTER EGG: tocar 5x no título → chuva de corações
+    this._titleClicks=0;
+    title.setInteractive({useHandCursor:true}).on("pointerdown",()=>{
+      this.tweens.add({targets:title,angle:Phaser.Math.Between(-4,4),duration:80,yoyo:true});
+      if(++this._titleClicks>=5){ this._titleClicks=0; this.heartRain(); this.showEasterEgg("💖 Easter egg!\nFeito com muito carinho\npra te ver sorrir jogando. 🥰"); }
+    });
+
+    this.add.text(W-10,H-8,"🐱 dica: toque no gatinho...",{fontSize:"11px",color:"#ffffff"}).setOrigin(1,1).setAlpha(0.5).setDepth(6);
+  }
+
+  heartRain(){
+    const W=this.scale.width,H=this.scale.height;
+    for(let i=0;i<40;i++){
+      const h=this.add.text(Phaser.Math.Between(10,W-10),Phaser.Math.Between(-200,-10),["❤","💖","🌟","🐱","✨"][i%5],{fontSize:`${Phaser.Math.Between(18,34)}px`}).setOrigin(0.5).setDepth(30);
+      this.tweens.add({targets:h,y:H+30,rotation:Phaser.Math.FloatBetween(-1.4,1.4),duration:Phaser.Math.Between(2200,4200),delay:Phaser.Math.Between(0,800),onComplete:()=>h.destroy()});
+    }
+    SoundFX.special();
+  }
+
+  showEasterEgg(text){
+    if(this._eggEls) return;
+    const W=this.scale.width,H=this.scale.height,pw=Math.min(W-50,430),ph=200;
+    const dim=this.add.rectangle(0,0,W,H,0x05030b,0.55).setOrigin(0).setDepth(3000).setInteractive();
+    const panel=this.add.rectangle(W/2,H/2,pw,ph,0xfff8fb,0.98).setStrokeStyle(4,0xff6fb1,1).setDepth(3001);
+    const txt=this.add.text(W/2,H/2-10,text,{fontFamily:"Verdana,system-ui,sans-serif",fontSize:"17px",color:"#c43d7a",fontStyle:"900",align:"center",lineSpacing:5,wordWrap:{width:pw-40}}).setOrigin(0.5).setDepth(3002);
+    const hint=this.add.text(W/2,H/2+ph/2-22,"toque para fechar",{fontSize:"12px",color:"#9a6a85"}).setOrigin(0.5).setDepth(3002);
+    const els=[dim,panel,txt,hint]; this._eggEls=els;
+    dim.on("pointerdown",()=>{ els.forEach(e=>e.destroy()); this._eggEls=null; });
+    SoundFX.collect();
   }
 }
 
@@ -862,7 +1138,7 @@ class HowToScene extends Phaser.Scene {
     setMobileControlsVisible(false);
     addBeachBackdrop(this);
     addPixelText(this,centerX(this),70,"Como jogar",34,"#fff8fb");
-    const ins=["🕹️ Joystick ou WASD para andar","🥕 Ataque para bater nas tentações","💨 Dash para desviar dos perigos","✨ Especial quando a mana estiver cheia","🍓 Colete comidas saudáveis","🐱 Seu gatinho te segue por todo o jogo!","🎁 Chegue até o baú secreto"];
+    const ins=["🕹️ Joystick ou WASD para andar","🗡️ Ataque: sua arma voa até o inimigo","🐱 Botão do gato: manda ele atacar (tem recarga)","💨 Dash para desviar dos perigos","✨ Especial quando a mana encher","🍓 Colete comidas saudáveis pra curar","🎁 Vença as fases até o baú secreto"];
     const pw=Math.min(640,this.scale.width-28);
     this.add.rectangle(centerX(this),centerY(this),pw,340,0x1d2544,0.74).setStrokeStyle(3,0xffffff,0.28).setOrigin(0.5);
     ins.forEach((l,i)=>this.add.text(centerX(this),centerY(this)-125+i*40,l,{fontFamily:"Verdana,system-ui,sans-serif",fontSize:"16px",color:"#ffffff",stroke:"#151329",strokeThickness:3}).setOrigin(0.5));
@@ -877,26 +1153,39 @@ class ClassSelectScene extends Phaser.Scene {
   constructor(){super("ClassSelectScene");}
   create(){
     setMobileControlsVisible(false);
+    buildAllTextures(this);
     addBeachBackdrop(this);
-    addPixelText(this,centerX(this),48,"Escolha sua classe",30,"#fff8fb");
-    addPixelText(this,centerX(this),88,"Cada uma muda ataque, mana ou dash.",15,"#ffffff");
-    const keys=["guerreira","marmita","rainha"];
-    const cW=Math.min(330,this.scale.width-34), cH=128, sY=this.scale.height<700?145:165;
+    addPixelText(this,centerX(this),46,"Escolha sua classe",30,"#fff8fb");
+    addPixelText(this,centerX(this),84,"Cada uma tem uma arma e poder diferente.",14,"#ffffff");
+    const keys=["guerreira","estrategista","sereia"];
+    const colors={guerreira:0xff8a3d, estrategista:0x4fe39a, sereia:0x44d4ff};
+    const wkeyMap={carrot:"proj_carrot",clipboard:"proj_clipboard",trident:"weap_trident"};
+    const cW=Math.min(340,this.scale.width-30), cH=132, sY=this.scale.height<700?150:172;
     keys.forEach((key,idx)=>{
-      const cfg=CLASS_CONFIGS[key], y=sY+idx*(cH+18);
+      const cfg=CLASS_CONFIGS[key], y=sY+idx*(cH+16);
       const card=this.add.container(centerX(this),y);
-      const bgC=key==="guerreira"?0xff8a3d:key==="marmita"?0xffd166:0xff6fb1;
-      card.add([
+      const bgC=colors[key];
+      const els=[
         this.add.rectangle(5,7,cW,cH,20,0x000000,0.22),
-        this.add.rectangle(0,0,cW,cH,20,bgC,0.95).setStrokeStyle(3,0xffffff,0.6),
-        this.add.text(-cW/2+20,-43,cfg.name,{fontFamily:"Verdana,system-ui,sans-serif",fontSize:"20px",fontStyle:"900",color:"#ffffff",stroke:"#32142d",strokeThickness:4}).setOrigin(0,0.5),
-        this.add.text(-cW/2+20,-10,cfg.joke,{fontFamily:"Verdana,system-ui,sans-serif",fontSize:"13px",color:"#ffffff",wordWrap:{width:cW-40}}).setOrigin(0,0.5),
-        this.add.text(-cW/2+20,38,`Vida ${cfg.maxHp}  •  Mana ${cfg.maxMana}  •  Dash ${cfg.dashSpeed}`,{fontFamily:"Verdana,system-ui,sans-serif",fontSize:"13px",color:"#fff9cf",stroke:"#32142d",strokeThickness:2}).setOrigin(0,0.5)
-      ]);
+        this.add.rectangle(0,0,cW,cH,20,bgC,0.96).setStrokeStyle(3,0xffffff,0.6),
+        // medalhão da arma
+        this.add.circle(-cW/2+44,0,34,0xffffff,0.22),
+        this.add.image(-cW/2+44,0,wkeyMap[cfg.weapon]).setScale(cfg.weapon==="proj_carrot"?2:1.7),
+        this.add.text(-cW/2+88,-46,cfg.name,{fontFamily:"Verdana,system-ui,sans-serif",fontSize:"19px",fontStyle:"900",color:"#ffffff",stroke:"#32142d",strokeThickness:4}).setOrigin(0,0.5),
+        this.add.text(-cW/2+88,-16,cfg.weaponDesc,{fontFamily:"Verdana,system-ui,sans-serif",fontSize:"12px",color:"#fff9cf",wordWrap:{width:cW-110}}).setOrigin(0,0.5),
+        this.add.text(-cW/2+88,30,`❤ ${cfg.maxHp}   ✦ Mana ${cfg.maxMana}`,{fontFamily:"Verdana,system-ui,sans-serif",fontSize:"13px",color:"#ffffff",stroke:"#32142d",strokeThickness:2}).setOrigin(0,0.5),
+        this.add.text(-cW/2+88,50,`💨 Dash ${cfg.dashSpeed}   🗡 Dano ${cfg.attackDamage}`,{fontFamily:"Verdana,system-ui,sans-serif",fontSize:"13px",color:"#ffffff",stroke:"#32142d",strokeThickness:2}).setOrigin(0,0.5)
+      ];
+      card.add(els);
       card.setSize(cW,cH).setInteractive({useHandCursor:true});
-      card.on("pointerdown",()=>{ SoundFX.collect(); gameState.selectedClassKey=key; gameState.run=null; this.scene.start("GameScene",{level:1,fresh:true}); });
+      // gira a arminha de leve no card
+      const wimg=els[3];
+      this.tweens.add({targets:wimg,angle:cfg.weapon==="clipboard"?360:0,y:cfg.weapon==="clipboard"?0:"-=4",yoyo:cfg.weapon!=="clipboard",repeat:-1,duration:cfg.weapon==="clipboard"?2200:900,ease:cfg.weapon==="clipboard"?"Linear":"Sine.easeInOut"});
+      card.on("pointerover",()=>this.tweens.add({targets:card,scale:1.03,duration:120}));
+      card.on("pointerout", ()=>this.tweens.add({targets:card,scale:1,duration:120}));
+      card.on("pointerdown",()=>{ SoundFX.collect(); this.tweens.add({targets:card,scale:0.97,duration:70,yoyo:true}); gameState.selectedClassKey=key; gameState.run=null; this.time.delayedCall(120,()=>this.scene.start("GameScene",{level:1,fresh:true})); });
     });
-    addMenuButton(this,centerX(this),this.scale.height-48,"Voltar",()=>this.scene.start("MenuScene"),190,48,0x44a7ff);
+    addMenuButton(this,centerX(this),this.scale.height-44,"Voltar",()=>this.scene.start("MenuScene"),190,46,0x44a7ff);
   }
 }
 
@@ -917,6 +1206,7 @@ class GameScene extends Phaser.Scene {
 
   create(){
     setMobileControlsVisible(true);
+    this.cameras.main.resetFX(); // limpa qualquer fade/flash herdado da fase anterior
     buildAllTextures(this);
     buildPlayerAnims(this);
     buildCatAnims(this);
@@ -927,6 +1217,7 @@ class GameScene extends Phaser.Scene {
 
     this.requiredItems=new Set(); this.collectedRequired=new Set();
     this.enemyKillGoal=0; this.enemyKills=0; this.portalSpawned=false;
+    this.useWaves=false; this.waveIndex=0; this.totalWaves=0;
     this.physics.resume(); // garante que física nunca fica pausada entre fases
     this.gameOver=false; this.lastDir=new Phaser.Math.Vector2(0,1);
     this.facing="down"; this.nextAttackAt=0; this.nextDashAt=0;
@@ -953,6 +1244,14 @@ class GameScene extends Phaser.Scene {
     this.player.body.setSize(12, 14).setOffset(17, 30);
     if(this.anims.exists("player_idle_down")) this.player.play("player_idle_down");
 
+    // AURA — evolui de cor e intensidade conforme a fase
+    this.createAura();
+
+    // ARMA EQUIPADA visível ao lado da personagem (espada de cenoura / prancheta / tridente)
+    const wkey={carrot:"proj_carrot",clipboard:"proj_clipboard",trident:"weap_trident"}[this.classCfg.weapon]||"proj_carrot";
+    this.weaponSprite=this.add.image(this.player.x,this.player.y,wkey).setDepth(21).setScale(1.4);
+    this._weaponSwing=0;
+
     // PET GATO — agora com posição correta
     this.cat=spawnCatPet(this,this.player);
 
@@ -978,7 +1277,7 @@ class GameScene extends Phaser.Scene {
       up2:Phaser.Input.Keyboard.KeyCodes.UP, down2:Phaser.Input.Keyboard.KeyCodes.DOWN,
       left2:Phaser.Input.Keyboard.KeyCodes.LEFT, right2:Phaser.Input.Keyboard.KeyCodes.RIGHT,
       attack:Phaser.Input.Keyboard.KeyCodes.SPACE, dash:Phaser.Input.Keyboard.KeyCodes.SHIFT,
-      special:Phaser.Input.Keyboard.KeyCodes.E
+      special:Phaser.Input.Keyboard.KeyCodes.E, catAttack:Phaser.Input.Keyboard.KeyCodes.Q
     });
 
     this.createHUD();
@@ -1003,44 +1302,52 @@ class GameScene extends Phaser.Scene {
     }
 
     if(t==="beach"){
-      if(this.textures.exists("bg_dirt")) this.add.tileSprite(0,0,this.worldW,this.worldH,"bg_dirt").setOrigin(0).setDepth(-60);
-      else { g.fillStyle(0xffe99a,1); g.fillRect(0,0,this.worldW,this.worldH); }
-      g.fillStyle(0x44bbee,1); g.fillRect(0,0,this.worldW,220);
-      // ondas
-      g.fillStyle(0xffffff,0.3); for(let x=0;x<this.worldW;x+=110) g.fillRoundedRect(x,208+Math.sin(x/80)*6,80,9,5);
+      // Chão de AREIA gerado (os tiles .png do projeto são verdes/errados)
+      this.add.tileSprite(0,0,this.worldW,this.worldH,"sand_floor_gen").setOrigin(0).setDepth(-60);
+      // Faixa de MAR no topo, com transição de espuma para a areia
+      g.fillStyle(0x2aa3dd,1); g.fillRect(0,0,this.worldW,180);
+      g.fillStyle(0x4ec3ee,1); g.fillRect(0,150,this.worldW,46);
+      // Linha de espuma da arrebentação
+      g.fillStyle(0xffffff,0.75); for(let x=0;x<this.worldW;x+=70) g.fillRoundedRect(x,190+Math.sin(x/60)*7,52,8,4);
+      g.fillStyle(0xffffff,0.35); for(let x=0;x<this.worldW;x+=90) g.fillRoundedRect(x+20,168+Math.sin(x/80)*6,60,6,3);
       // sol
-      g.fillStyle(0xfff06f,1); g.fillCircle(this.worldW-120,90,48);
-      g.fillStyle(0xffdd33,0.3); g.fillCircle(this.worldW-120,90,64);
-      // estrela do mar
-      g.fillStyle(0xff7755,0.6); g.fillStar(860,590,5,8,20,0);
-      g.fillStyle(0xff5533,0.9); g.fillStar(860,590,5,4,12,0);
-      // concha decorativa
-      g.fillStyle(0xffeedd,0.8); g.fillCircle(350,720,22); g.lineStyle(2,0xddbbaa,0.8); g.strokeCircle(350,720,22);
-      this.add.text(940,542,"❤",{fontSize:"34px",color:"#ff6fb1"}).setOrigin(0.5).setDepth(-40);
+      g.fillStyle(0xffdd33,0.35); g.fillCircle(this.worldW-120,80,66);
+      g.fillStyle(0xfff06f,1);    g.fillCircle(this.worldW-120,80,46);
+      // estrela do mar + concha na areia
+      this.add.star(360,640,5,8,20,0xff7755,0.7).setDepth(-45);
+      this.add.star(360,640,5,4,12,0xff5533,0.95).setDepth(-45);
+      g.fillStyle(0xffeedd,0.9); g.fillCircle(820,560,20); g.lineStyle(2,0xddbbaa,0.9);
+      for(let a=0;a<5;a++) g.lineBetween(820,560,820+Math.cos(a*1.25)*20,560+Math.sin(a*1.25)*20);
     }
 
     if(t==="market"){
-      if(this.textures.exists("bg_grass")) this.add.tileSprite(0,0,this.worldW,this.worldH,"bg_grass").setOrigin(0).setDepth(-60);
-      else { g.fillStyle(0x2e4a56,1); g.fillRect(0,0,this.worldW,this.worldH); }
-      // Prateleiras decorativas
-      g.fillStyle(0x96e08b,0.25); g.fillRoundedRect(80,80,290,130,12);
-      g.fillStyle(0xffd166,0.25); g.fillRoundedRect(820,120,320,150,12);
-      this.add.text(980,195,"Setor Fit\n100% saudável",{fontSize:"22px",align:"center",color:"#ffffff",fontStyle:"900"}).setOrigin(0.5).setDepth(-40);
-      // Comidas decorativas do pacote food/ (se carregaram)
-      const deco=[["fi_salad",120,240,0.6],["fi_chicken",980,680,0.6],["fi_curry",250,580,0.55],["fi_sushi",850,250,0.6]];
-      deco.forEach(([k,dx,dy,da])=>{ if(this.textures.exists(k)) this.add.image(dx,dy,k).setAlpha(da).setScale(1.5).setDepth(-40); });
+      // Piso de SUPERMERCADO (ladrilho) gerado
+      this.add.tileSprite(0,0,this.worldW,this.worldH,"tile_floor_gen").setOrigin(0).setDepth(-60);
+      // Faixa/parede de fundo com prateleiras
+      g.fillStyle(0xd8e4ee,1); g.fillRect(0,0,this.worldW,150);
+      g.fillStyle(0xb9c9d8,1); g.fillRect(0,150,this.worldW,8);
+      // Prateleiras com produtos (retângulos coloridos = itens fit)
+      const prateleira=(px,py,cor)=>{ g.fillStyle(0x9a6a3c,1); g.fillRect(px,py,250,16); g.fillStyle(cor,0.9);
+        for(let i=0;i<7;i++) g.fillRect(px+8+i*34,py-22,26,22); };
+      prateleira(90,70,0x6ad06a); prateleira(420,70,0xffb84d); prateleira(760,70,0xff7a9c);
+      this.add.text(this.worldW/2,118,"🛒 SETOR FIT — 100% saudável",{fontSize:"20px",color:"#2b4a63",fontStyle:"900"}).setOrigin(0.5).setDepth(-40);
+      // Comidas decorativas reais (se carregaram)
+      const deco=[["fi_salad",150,300,0.7],["fi_chicken",980,680,0.7],["fi_bowl",260,600,0.65],["fi_strawb",860,320,0.7]];
+      deco.forEach(([k,dx,dy,da])=>{ if(this.textures.exists(k)) this.add.image(dx,dy,k).setAlpha(da).setScale(1.6).setDepth(-40); });
     }
 
     if(t==="night"){
-      g.fillGradientStyle(0x10132f,0x10132f,0x2d1b4c,0x121126,1); g.fillRect(0,0,this.worldW,this.worldH);
-      for(let i=0;i<100;i++){
+      // Chão noturno mágico gerado + gradiente de céu por cima das bordas
+      this.add.tileSprite(0,0,this.worldW,this.worldH,"night_floor_gen").setOrigin(0).setDepth(-60);
+      g.fillStyle(0x12102b,0.55); g.fillRect(0,0,this.worldW,this.worldH);
+      for(let i=0;i<90;i++){
         g.fillStyle(Phaser.Math.Between(0,1)?0xffffff:0xffb6df,Phaser.Math.FloatBetween(0.3,0.9));
         g.fillCircle(Phaser.Math.Between(20,this.worldW-20),Phaser.Math.Between(20,this.worldH-20),Phaser.Math.Between(1,2.5));
       }
-      g.lineStyle(3,0xff6fb1,0.3); for(let i=0;i<10;i++) g.strokeCircle(Phaser.Math.Between(100,this.worldW-100),Phaser.Math.Between(100,this.worldH-100),Phaser.Math.Between(20,60));
+      g.lineStyle(3,0xb06bff,0.25); for(let i=0;i<8;i++) g.strokeCircle(Phaser.Math.Between(100,this.worldW-100),Phaser.Math.Between(100,this.worldH-100),Phaser.Math.Between(20,60));
       // lua
-      g.fillStyle(0xfffbe0,0.9); g.fillCircle(200,120,38);
-      g.fillStyle(0x10132f,1); g.fillCircle(218,112,32);
+      g.fillStyle(0xfffbe0,0.95); g.fillCircle(200,120,40);
+      g.fillStyle(0x191334,1);    g.fillCircle(220,112,33);
     }
   }
 
@@ -1059,23 +1366,36 @@ class GameScene extends Phaser.Scene {
     this.addObs(335,560,230,60,0xa07060,"bagunça", "fi_cake");
     this.addObs(1040,605,160,80,0x6c4b3d,"📦 caixas", "fi_burger");
     this.addObs(650,700,250,46,0x7a5a48,"🛏️ cama", "fi_icecream");
-    this.addReq("mala","Mala",1040,155,"goal_mala");
-    this.addReq("protetor","Protetor solar",270,720,"goal_protetor");
-    this.addReq("passagem","Passagem",1120,690,"goal_passagem");
-    this.addEnemy("coxinha",565,420); this.addEnemy("coxinha",940,505);
-    this.addEnemy("refri",740,170); this.addEnemy("refri",210,490);
+    // Combate em 2 ondas — portal só abre depois de limpar tudo (boss na 2ª onda)
+    this.useWaves=true; this.totalWaves=2; this.waveIndex=0;
+    this.spawnWaveLvl1(0);
+  }
+
+  spawnWaveLvl1(index){
+    if(index===0){
+      this.addEnemy("coxinha",565,420); this.addEnemy("coxinha",940,505);
+      this.addEnemy("refri",740,170);  this.addEnemy("refri",210,490);
+      this.showMsg("🌊 Onda 1: derrote as tentações!",2000);
+    } else {
+      this.addEnemy("coxinha",420,300); this.addEnemy("refri",900,560);
+      this.addEnemy("hamburger",650,260);
+      this.boss=this.addEnemy("boss",640,170,16); // boss da fase 1 (HP reduzido)
+      this.showMsg("⚠ Onda 2: o CHEFE da Saudade apareceu!",2400);
+      SoundFX.special();
+    }
   }
 
   lvl2(){
     this.player.setPosition(90,720);
     this.enemyKillGoal=6;
     for(let i=0;i<6;i++) this.addEnemy("crab",390+i*125,Phaser.Math.Between(300,690));
-    this.addObs(260,260,140,44,0x806f65,"🪨 pedras", "fi_dump");
-    this.addObs(560,525,130,52,0x806f65,"🪨 pedras", "fi_chicken");
-    this.addObs(890,390,150,46,0x806f65,"🐚 conchas", "fi_strawb");
-    this.addObs(1110,270,100,52,0x806f65,"🌊 onda", "fi_pizza");
+    this.addObs(260,300,140,44,0x806f65,"🌴 coqueiro");
+    this.addObs(560,525,130,52,0x806f65,"🪨 pedras");
+    this.addObs(890,360,150,46,0x806f65,"🌴 coqueiro");
+    this.addObs(1110,300,100,52,0x806f65,"🪨 pedras");
     this.addCol("coco",245,410); this.addCol("morango",690,250); this.addCol("banana",1000,670);
-    this.addScenTxt(960,720,"placa: proibido\nsentir saudade\nsem mandar mensagem","#5d3d2e");
+    // Plaquinha de madeira interativa com recadinho
+    this.addSign(700,610,"Boa viagem e sucesso\nminha nutri 💖");
   }
 
   lvl3(){
@@ -1113,47 +1433,72 @@ class GameScene extends Phaser.Scene {
     this.add.text(x,y,text,{fontFamily:"Verdana,system-ui,sans-serif",fontSize:"15px",color,align:"center",stroke:"#ffffff",strokeThickness:2}).setOrigin(0.5).setDepth(-10);
   }
 
+  // Plaquinha de madeira clicável que abre uma mensagem
+  addSign(x,y,msg){
+    const sign=this.add.image(x,y,"sign_wood").setDepth(8).setScale(1.5);
+    sign.setInteractive({useHandCursor:true});
+    // Indicador flutuante de que é interativa
+    const hint=this.add.text(x,y-52,"💌",{fontSize:"24px"}).setOrigin(0.5).setDepth(9);
+    this.tweens.add({targets:hint,y:hint.y-7,yoyo:true,repeat:-1,duration:720,ease:"Sine.easeInOut"});
+    this.add.text(x,y+44,"toque na plaquinha 💖",{fontSize:"12px",color:"#5d3d2e",stroke:"#fff",strokeThickness:3}).setOrigin(0.5).setDepth(9);
+    const open=()=>this.showSignMessage(msg);
+    sign.on("pointerdown",open);
+    hint.setInteractive({useHandCursor:true}).on("pointerdown",open);
+    return sign;
+  }
+
+  // Painel central com a mensagem da plaquinha (toque em qualquer lugar fecha)
+  showSignMessage(text){
+    if(this._signEls) return; // já aberto
+    const W=this.scale.width, H=this.scale.height;
+    const pw=Math.min(W-50,470), ph=220;
+    const dim  =this.add.rectangle(0,0,W,H,0x05030b,0.55).setOrigin(0).setScrollFactor(0).setDepth(3000).setInteractive();
+    const panel=this.add.rectangle(W/2,H/2,pw,ph,0xfff8fb,0.98).setStrokeStyle(4,0xff6fb1,1).setScrollFactor(0).setDepth(3001);
+    const heart=this.add.text(W/2,H/2-ph/2+34,"💌",{fontSize:"34px"}).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
+    const txt  =this.add.text(W/2,H/2-2,text,{fontFamily:"Verdana,system-ui,sans-serif",fontSize:"22px",color:"#c43d7a",fontStyle:"900",align:"center",lineSpacing:6,wordWrap:{width:pw-50}}).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
+    const hint =this.add.text(W/2,H/2+ph/2-26,"toque para fechar",{fontFamily:"Verdana,system-ui,sans-serif",fontSize:"13px",color:"#9a6a85"}).setOrigin(0.5).setScrollFactor(0).setDepth(3002);
+    const els=[dim,panel,heart,txt,hint];
+    this._signEls=els;
+    dim.on("pointerdown",()=>{ els.forEach(e=>e&&e.destroy()); this._signEls=null; });
+    SoundFX.collect(); vibrate(10);
+  }
+
   addObs(x,y,w,h,color,label="", tex=""){
-    // Detecta o sprite certo pelo label ou tema
     const lbl = label.replace(/\p{Emoji}/gu,"").trim().toLowerCase();
     const theme = this.levelData.theme;
-    const isNature = theme==="beach" || theme==="market";
 
-    // Mapa de label -> sprite de mobiliário
-    const furnitureMap = {
-      "caixas":    "prop_box",
-      "roupas":    "prop_wardrobe",
-      "bagunça":  "prop_mess",
-      "cama":      "prop_bed",
+    // Escolhe o sprite coerente com a fase pelo tema + palavra-chave do label
+    let spriteKey=null, tint=0xffffff;
+    if(theme==="room"){
+      const m={ "caixas":"prop_box", "roupas":"prop_wardrobe", "bagunça":"prop_mess", "cama":"prop_bed" };
+      const k=Object.keys(m).find(k=>lbl.includes(k)); spriteKey=k?m[k]:null;
+    } else if(theme==="beach"){
+      spriteKey = (lbl.includes("coqueiro")||lbl.includes("palm")) ? "obs_palm" : "obs_rock";
+    } else if(theme==="market"){
+      if(lbl.includes("caixa")) spriteKey="obs_crate";
+      else if(lbl.includes("balcão")||lbl.includes("balcao")||lbl.includes("freezer")) spriteKey="obs_freezer";
+      else spriteKey="obs_shelf"; // hortifruti / prateleira
+    } else if(theme==="night"){
+      spriteKey="obs_crystal";
+      tint = lbl.includes("brilho")?0xffe066 : lbl.includes("portal")?0x6be9ff : 0xc08bff;
+    }
+
+    // Corpo de colisão por tipo (cobre a base do objeto, não a copa/topo alto)
+    const bodyByKey={
+      prop_box:[0.8,0.7,0.1,0.15], prop_wardrobe:[0.8,0.7,0.1,0.15], prop_mess:[0.8,0.7,0.1,0.15], prop_bed:[0.8,0.7,0.1,0.15],
+      obs_rock:[0.82,0.5,0.09,0.45], obs_palm:[0.28,0.22,0.36,0.72],
+      obs_shelf:[0.86,0.6,0.07,0.18], obs_crate:[0.78,0.6,0.11,0.28], obs_freezer:[0.88,0.55,0.06,0.32],
+      obs_crystal:[0.6,0.32,0.2,0.55]
     };
-    const furnitureKey = Object.keys(furnitureMap).find(k => lbl.includes(k));
-    const furSprite    = furnitureKey ? furnitureMap[furnitureKey] : null;
 
     let r;
-
-    if(!isNature && furSprite && this.textures.exists(furSprite)){
-      // Sprite de mobiliário pixelado
-      r = this.add.image(x, y, furSprite).setDepth(8);
+    if(spriteKey && this.textures.exists(spriteKey)){
+      r = this.add.image(x, y, spriteKey).setDepth(8);
+      if(tint!==0xffffff) r.setTint(tint);
       this.physics.add.existing(r, true);
-      r.body.setSize(r.width * 0.8, r.height * 0.7).setOffset(r.width*0.1, r.height*0.15);
-      // Label em cima
-      this.add.text(x, y + r.height/2 + 6, label, {
-        fontSize:"13px", fontFamily:"monospace", color:"#ffffff",
-        align:"center", stroke:"#111", strokeThickness:4
-      }).setOrigin(0.5, 0).setDepth(9);
-
-    } else if(isNature){
-      // Árvores / natureza
-      const propKeys=["prop_tree1","prop_tree2","prop_mush"];
-      const rndProp = propKeys[Math.abs(Math.round(x+y))%propKeys.length];
-      const sc = rndProp==="prop_mush" ? 4 : 3.5;
-      r = this.add.sprite(x, y, rndProp, 0).setScale(sc).setDepth(8);
-      if(this.anims.exists("anim_"+rndProp.replace("prop_",""))) r.play("anim_"+rndProp.replace("prop_",""));
-      this.physics.add.existing(r, true);
-      const bw = rndProp==="prop_mush" ? 22 : 40;
-      r.body.setSize(bw, bw).setOffset((r.width-bw)/2, r.height-bw);
-      if(label) this.add.text(x, y+(rndProp==="prop_mush"?28:56), label, {fontSize:"13px",fontFamily:"monospace",color:"#fff",stroke:"#111",strokeThickness:4}).setOrigin(0.5).setDepth(9);
-
+      const bb=bodyByKey[spriteKey]||[0.8,0.6,0.1,0.25];
+      r.body.setSize(r.width*bb[0], r.height*bb[1]).setOffset(r.width*bb[2], r.height*bb[3]);
+      if(label) this.add.text(x, y + r.height/2 + 4, label, {fontSize:"13px",fontFamily:"monospace",color:"#ffffff",align:"center",stroke:"#111",strokeThickness:4}).setOrigin(0.5,0).setDepth(9);
     } else {
       // Fallback: caixa colorida discreta
       r = this.add.rectangle(x, y, w, h, color, 0.88).setStrokeStyle(2, 0xffffff, 0.4).setDepth(8);
@@ -1205,7 +1550,7 @@ class GameScene extends Phaser.Scene {
     return obj;
   }
 
-  addEnemy(type,x,y){
+  addEnemy(type,x,y,hpOverride){
     // Dados dos inimigos com mapeamento para imagens reais do food/
     const D={
       coxinha:   {tex:"coxinha",  real:"fi_fries",   name:"🍟 Batata Frita Sombria",     hp:4,   sp:82,  dmg:1,sc:80},
@@ -1221,8 +1566,9 @@ class GameScene extends Phaser.Scene {
     const hasReal=D.real&&this.textures.exists(D.real);
     const tex=hasReal?D.real:D.tex;
     const enemy=this.enemies.create(x,y,tex);
+    const hp = hpOverride || D.hp;
     enemy.setData("type",type); enemy.setData("name",D.name);
-    enemy.setData("hp",D.hp); enemy.setData("maxHp",D.hp);
+    enemy.setData("hp",hp); enemy.setData("maxHp",hp);
     enemy.setData("speed",D.sp); enemy.setData("damage",D.dmg);
     enemy.setData("score",D.sc); enemy.setData("boss",!!D.boss);
     enemy.setData("nextShoot",this.time.now+1300);
@@ -1288,11 +1634,139 @@ class GameScene extends Phaser.Scene {
     if(consumeInput("attack")||Phaser.Input.Keyboard.JustDown(this.keys.attack)) this.doAttack(time);
     if(consumeInput("dash")  ||Phaser.Input.Keyboard.JustDown(this.keys.dash))   this.doDash(time);
     if(consumeInput("special")||Phaser.Input.Keyboard.JustDown(this.keys.special)) this.doSpecial(time);
+    if(consumeInput("catAttack")||Phaser.Input.Keyboard.JustDown(this.keys.catAttack)) this.commandCatAttack();
     this.moveEnemies(time);
     this.tickProj();
     this.updateHUD();
-    // Atualizar gato
-    if(this.cat&&this.cat.active) this.cat.follow(this.player.x,this.player.y);
+    // Atualizar gato (segue o player ou vai atacar quando comandado)
+    if(this.cat&&this.cat.active) this.updateCat(time);
+    // Aura (casca + núcleo) envolve o corpo — emitter segue sozinho via follow
+    if(this.auraGlow){ this.auraGlow.setPosition(this.player.x,this.player.y-6); }
+    if(this.auraCore){ this.auraCore.setPosition(this.player.x,this.player.y-2); }
+    // Arma equipada flutua ao lado da personagem, apontando para onde ela mira
+    if(this.weaponSprite){
+      const d=this.lastDir;
+      const bob=Math.sin(time/220)*2;
+      this.weaponSprite.setPosition(this.player.x+d.x*30, this.player.y+d.y*30-6+bob);
+      const base=this.classCfg.weapon==="trident" ? d.angle()+Math.PI/2 : d.angle();
+      this.weaponSprite.setRotation(base + this._weaponSwing);
+      this._weaponSwing = Math.abs(this._weaponSwing)>0.01 ? this._weaponSwing*0.78 : 0;
+    }
+  }
+
+  // Gato: segue o player; quando recebe ordem, corre até o alvo, golpeia e volta a seguir
+  updateCat(time){
+    const cat=this.cat;
+    const target=cat._commandedTarget;
+    if(target && target.active){
+      cat.follow(target.x, target.y-26, 22);  // corre direto até o inimigo (sem manter distância)
+      if(Phaser.Math.Distance.Between(cat.x,cat.y,target.x,target.y)<54){
+        this.catStrike(target, 1.4, 1.0);     // golpe comandado: dano forte
+        cat._commandedTarget=null;            // missão cumprida → volta a seguir
+      }
+    } else {
+      cat._commandedTarget=null;
+      cat.follow(this.player.x, this.player.y);
+      this.catAutoAttack(time);               // perto de inimigos, dá beliscões fracos sozinho
+    }
+  }
+
+  // Ordem do botão/tecla: manda o gato no inimigo mais próximo do player
+  commandCatAttack(){
+    if(!this.cat||!this.cat.active) return;
+    const now=this.time.now;
+    // Cooldown: evita spam do ataque forte do gato
+    if(now<this.cat._nextCommand){
+      const s=Math.ceil((this.cat._nextCommand-now)/1000);
+      this.showMsg(`🐱 Gatinho recarregando... (${s}s)`,700);
+      return;
+    }
+    if(this.cat._commandedTarget&&this.cat._commandedTarget.active){
+      this.showMsg("🐱 Já estou indo!",700); return;
+    }
+    let nearest=null, nd=1e9;
+    this.enemies.children.iterate(en=>{
+      if(!en||!en.active) return;
+      const d=Phaser.Math.Distance.Between(this.player.x,this.player.y,en.x,en.y);
+      if(d<nd){ nd=d; nearest=en; }
+    });
+    if(nearest){
+      const CD=3500; // 3,5s de cooldown
+      this.cat._nextCommand=now+CD;
+      this.cat._commandedTarget=nearest;
+      setCatButtonCooldown(CD);
+      vibrate(12); SoundFX.tone(880,0.05,"square",0.02);
+      this.showMsg("🐱 Vai, gatinho! Ataca!",900);
+    } else {
+      this.showMsg("Nenhum inimigo por perto 🐱",800);
+    }
+  }
+
+  // Golpe do gato: animação de investida (lunge + giro) + patinha + dano
+  catStrike(en, dmg, scale=0.6){
+    if(!en||!en.active) return;
+    const cat=this.cat;
+    cat._attackPunch=0.32+scale*0.2;
+    // Investida na direção do inimigo + giro (animação de ataque)
+    const ang=Phaser.Math.Angle.Between(cat.x,cat.y,en.x,en.y);
+    const reach=14+scale*10;
+    cat._lungeX=Math.cos(ang)*reach;
+    cat._lungeY=Math.sin(ang)*reach;
+    cat._attackSpin=(en.x<cat.x?-1:1)*(0.5+scale*0.5);
+    cat.setFlipX(en.x<cat.x);
+    // Patinha no inimigo + faíscas
+    const claw=this.add.text(en.x,en.y-12,"🐾",{fontSize:`${Math.round(15+scale*8)}px`}).setOrigin(0.5).setDepth(46);
+    this.tweens.add({targets:claw,y:claw.y-16,alpha:0,scale:1.2+scale,angle:Phaser.Math.Between(-30,30),duration:360,onComplete:()=>claw.destroy()});
+    for(let i=0;i<Math.round(3+scale*4);i++) this.sparkle(en.x,en.y,0xffd166,24+scale*16);
+    SoundFX.tone(720,0.04,"square",0.014);
+    this.damageEnemy(en,dmg);
+  }
+
+  // Aura estilo Dragon Ball — chamas verticais envolvendo o CORPO (não o chão)
+  createAura(){
+    const colors={ 1:0xff6fb1, 2:0x44d4ff, 3:0x5ec44b, 4:0xb06bff }; // rosa/azul/verde/roxo
+    const color = colors[this.level] || 0xff6fb1;
+    this.auraColor = color;
+    const power = 0.85 + this.level*0.15; // aura mais intensa a cada fase
+
+    // Casca da aura: elipse ALTA (vertical) atrás do corpo, pulsando
+    this.auraGlow = this.add.ellipse(this.player.x, this.player.y-6, 56*power, 108*power, color, 0.16)
+      .setDepth(19).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({targets:this.auraGlow, scaleX:1.16, scaleY:1.08, alpha:0.32, yoyo:true, repeat:-1, duration:470, ease:"Sine.easeInOut"});
+
+    // Núcleo branco-quente no meio do corpo
+    this.auraCore = this.add.ellipse(this.player.x, this.player.y-2, 32*power, 82*power, 0xffffff, 0.10)
+      .setDepth(19).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({targets:this.auraCore, scaleY:1.14, alpha:0.24, yoyo:true, repeat:-1, duration:300, ease:"Sine.easeInOut"});
+
+    // Labaredas subindo: partículas nascem nos pés e sobem (efeito flamejante DBZ)
+    if(this.textures.exists("aura_particle")){
+      this.auraEmitter = this.add.particles(0,0,"aura_particle",{
+        follow:this.player, followOffset:{x:0,y:14},
+        lifespan:520, frequency:24, quantity:2,
+        speedY:{min:-135,max:-70}, speedX:{min:-30,max:30},
+        scale:{start:0.6*power,end:0}, alpha:{start:0.7,end:0},
+        tint:color, blendMode:"ADD",
+        emitZone:{type:"random", source:new Phaser.Geom.Rectangle(-20,-6,40,30)}
+      });
+      this.auraEmitter.setDepth(19);
+    }
+    this.aura = this.auraGlow; // referência principal
+  }
+
+  // Gato ajudante: belisca sozinho o inimigo mais próximo, dano pequeno
+  catAutoAttack(time){
+    if(time<this.cat._nextAttack) return;
+    let nearest=null, nd=1e9;
+    this.enemies.children.iterate(en=>{
+      if(!en||!en.active) return;
+      const d=Phaser.Math.Distance.Between(this.cat.x,this.cat.y,en.x,en.y);
+      if(d<nd){ nd=d; nearest=en; }
+    });
+    if(nearest && nd<100){
+      this.cat._nextAttack=time+620;   // cooldown entre beliscões
+      this.catStrike(nearest, 0.4, 0.5); // pouco HP, efeito pequeno
+    }
   }
 
   movePlayer(time){
@@ -1357,32 +1831,59 @@ class GameScene extends Phaser.Scene {
 
   doAttack(time){
     if(time<this.nextAttackAt) return;
-    this.nextAttackAt=time+330; this.attackId+=1; vibrate(10); SoundFX.attack();
-    const d=this.lastDir.clone(); if(d.lengthSq()<0.1) d.set(0,1);
-    const px=this.player.x+d.x*42, py=this.player.y+d.y*42;
+    this.nextAttackAt=time+(this.classCfg.attackCooldown||330);
+    vibrate(10); SoundFX.attack();
+    const d=this.lastDir.clone(); if(d.lengthSq()<0.1) d.set(0,1); d.normalize();
+    this._weaponSwing=0.8; // kick visual na arma equipada
 
-    // Zona de hit
-    const zone=this.add.zone(px,py,78,60); this.physics.add.existing(zone); zone.body.setAllowGravity(false).setSize(78,60); zone.setData("aid",this.attackId);
+    const w=this.classCfg.weapon;
+    if(w==="clipboard")      this.fireClipboard(d);
+    else if(w==="trident")   this.fireTrident(d);
+    else                     this.fireCarrot(d);
 
-    // Elipse de impacto (efeito original)
-    const sl=this.add.ellipse(px,py,88,50,this.classCfg.attackColor,0.4).setDepth(30); sl.rotation=d.angle(); sl.setScale(0.45);
-    this.tweens.add({targets:sl,scale:1.08,alpha:0,duration:160,onComplete:()=>sl.destroy()});
-
-    // Slash sprite — linha diagonal na direção do ataque
-    if(this.textures.exists("attack_slash")){
-      const slash=this.add.image(this.player.x+d.x*32, this.player.y+d.y*32,"attack_slash")
-        .setDepth(32).setScale(0.5).setRotation(d.angle()-Math.PI/4)
-        .setTint(this.classCfg.attackColor).setAlpha(1);
-      this.tweens.add({targets:slash,scale:1.4,alpha:0,duration:200,ease:"Sine.easeOut",onComplete:()=>slash.destroy()});
-    }
-
-    // Flash de cor no player — não conflita com animação de walk
+    // flashzinho na personagem
     this.player.setTint(0xffffff);
-    this.time.delayedCall(90,()=>{ if(this.player?.active) this.player.clearTint(); });
+    this.time.delayedCall(80,()=>{ if(this.player?.active) this.player.clearTint(); });
+  }
 
-    for(let i=0;i<4;i++) this.sparkle(px,py,this.classCfg.attackColor,28);
-    this.physics.add.overlap(zone,this.enemies,(z,en)=>{ if(!en.active) return; if(en.getData("lastAid")===this.attackId) return; en.setData("lastAid",this.attackId); this.damageEnemy(en,this.classCfg.attackDamage); });
-    this.time.delayedCall(150,()=>zone.destroy());
+  // Guerreira: lâmina de cenoura em linha reta, veloz e forte
+  fireCarrot(d){
+    const shot=this.playerProj.create(this.player.x+d.x*28,this.player.y+d.y*28-6,"proj_carrot");
+    if(!shot) return;
+    shot.setData("dmg",this.classCfg.attackDamage).setData("born",this.time.now).setData("kind","straight");
+    shot.setDepth(28).setScale(1.6).setRotation(d.angle());
+    shot.body.setSize(20,12);
+    shot.setVelocity(d.x*640,d.y*640);
+    SoundFX.tone(560,0.05,"square",0.02);
+  }
+
+  // Estrategista: prancheta bumerangue — gira, atravessa e volta pra mão
+  fireClipboard(d){
+    const cb=this.playerProj.create(this.player.x,this.player.y-6,"proj_clipboard");
+    if(!cb) return;
+    cb.setData("dmg",this.classCfg.attackDamage).setData("born",this.time.now).setData("kind","boomerang").setData("phase","out");
+    cb.setDepth(28).setScale(1.3);
+    cb.body.setSize(24,28);
+    cb.setVelocity(d.x*540,d.y*540);
+    SoundFX.tone(430,0.06,"triangle",0.02);
+  }
+
+  // Sereia: tridente dispara rajada de 3 jatos d'água em sequência
+  fireTrident(d){
+    const base=d.angle();
+    for(let i=0;i<3;i++){
+      this.time.delayedCall(i*85,()=>{
+        if(this.gameOver||!this.player?.active) return;
+        const a=base+(Math.random()-0.5)*0.16;
+        const shot=this.playerProj.create(this.player.x+Math.cos(a)*24,this.player.y+Math.sin(a)*24-6,"proj_water");
+        if(!shot) return;
+        shot.setData("dmg",this.classCfg.attackDamage).setData("born",this.time.now).setData("kind","straight");
+        shot.setDepth(28).setScale(1.5).setRotation(a);
+        shot.body.setSize(16,10);
+        shot.setVelocity(Math.cos(a)*700,Math.sin(a)*700);
+        SoundFX.tone(700+i*70,0.04,"sine",0.016);
+      });
+    }
   }
 
   doDash(time){
@@ -1398,31 +1899,57 @@ class GameScene extends Phaser.Scene {
   doSpecial(time){
     const r=gameState.run;
     if(r.mana<this.classCfg.maxMana){ this.showMsg("Mana não encheu ainda! 🍌",1000); return; }
-    r.mana=0; vibrate(26); SoundFX.special(); this.cameras.main.shake(180,0.006);
-    this.showMsg("✨ Nutri Power ativado!",1200);
-    if(this.classCfg.specialStyle==="marmita") this.castMarmita(); else this.castArea();
+    r.mana=0; vibrate(26); SoundFX.special(); this.cameras.main.shake(220,0.008);
+    const s=this.classCfg.specialStyle;
+    if(s==="marmita")    this.specialMarmita();
+    else if(s==="agua")  this.specialAgua();
+    else                 this.specialCarrot();
   }
 
-  castArea(){
-    const radius=this.classCfg.specialStyle==="coracao"?178:154, c=this.classCfg.attackColor;
-    const ring=this.add.circle(this.player.x,this.player.y,radius,c,0.22).setDepth(32).setScale(0.25);
-    this.tweens.add({targets:ring,scale:1,alpha:0,duration:360,ease:"Sine.easeOut",onComplete:()=>ring.destroy()});
-    for(let i=0;i<22;i++) this.sparkle(this.player.x,this.player.y,c,radius);
-    this.enemies.children.iterate(en=>{ if(!en||!en.active) return; if(Phaser.Math.Distance.Between(this.player.x,this.player.y,en.x,en.y)<=radius) this.damageEnemy(en,this.classCfg.specialDamage); });
-  }
-
-  castMarmita(){
-    for(let i=0;i<10;i++){
-      const ang=(Math.PI*2*i)/10;
-      const tex=this.textures.exists("fi_salad")?"fi_salad":"marmitaShot";
-      const shot=this.playerProj.create(this.player.x,this.player.y,tex);
-      shot.setData("dmg",this.classCfg.specialDamage).setData("born",this.time.now);
-      shot.setScale(tex==="fi_salad"?0.8:1).setDepth(28);
-      shot.body.setCircle(11,3,3); shot.setVelocity(Math.cos(ang)*360,Math.sin(ang)*360); shot.rotation=ang;
+  // Cria um leque/nova de projéteis em volta da personagem
+  burstProjectiles(texKey,count,speed,dmg,kind="straight"){
+    for(let i=0;i<count;i++){
+      const a=(Math.PI*2*i)/count;
+      const shot=this.playerProj.create(this.player.x,this.player.y,texKey);
+      if(!shot) continue;
+      shot.setData("dmg",dmg).setData("born",this.time.now).setData("kind",kind);
+      shot.setDepth(28).setScale(1.4).setRotation(a);
+      shot.body.setSize(20,14);
+      shot.setVelocity(Math.cos(a)*speed,Math.sin(a)*speed);
     }
-    const b=this.add.circle(this.player.x,this.player.y,44,0xffe066,0.35).setDepth(31);
-    this.tweens.add({targets:b,scale:3.4,alpha:0,duration:420,onComplete:()=>b.destroy()});
-    this.showMsg("💥 Explosão de marmita fitness!",1200);
+  }
+
+  specialCarrot(){
+    this.showMsg("🥕 CHUVA DE CENOURAS!",1300);
+    this.burstProjectiles("proj_carrot",18,540,this.classCfg.specialDamage);
+    const ring=this.add.circle(this.player.x,this.player.y,40,0xff8a3d,0.45).setDepth(31).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({targets:ring,scale:4.5,alpha:0,duration:500,onComplete:()=>ring.destroy()});
+    for(let i=0;i<32;i++) this.sparkle(this.player.x,this.player.y,0xffb86b,160);
+    this.cameras.main.flash(180,255,180,90);
+  }
+
+  specialMarmita(){
+    this.showMsg("📋 PLANO NUTRICIONAL TOTAL!",1400);
+    this.burstProjectiles("proj_clipboard",12,440,this.classCfg.specialDamage);
+    const b=this.add.circle(this.player.x,this.player.y,46,0x4fe39a,0.45).setDepth(31).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({targets:b,scale:4.5,alpha:0,duration:540,onComplete:()=>b.destroy()});
+    for(let i=0;i<30;i++) this.sparkle(this.player.x,this.player.y,0xbfffe0,160);
+    spawnFx(this,this.player.x,this.player.y,"anim_fx_heart",1.6,52);
+    this.cameras.main.flash(180,120,255,180);
+  }
+
+  specialAgua(){
+    this.showMsg("🌊 MARÉ DE FLORIPA!",1400);
+    const radius=205;
+    for(let k=0;k<3;k++){
+      const ring=this.add.circle(this.player.x,this.player.y,30,0x44d4ff,0.4).setDepth(31).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({targets:ring,scale:radius/30,alpha:0,duration:620,delay:k*120,ease:"Sine.easeOut",onComplete:()=>ring.destroy()});
+    }
+    for(let i=0;i<40;i++) this.sparkle(this.player.x,this.player.y,0x9fe8ff,radius);
+    spawnFx(this,this.player.x,this.player.y,"anim_fx_sparkle",1.6,52);
+    this.enemies.children.iterate(en=>{ if(!en||!en.active) return; if(Phaser.Math.Distance.Between(this.player.x,this.player.y,en.x,en.y)<=radius) this.damageEnemy(en,this.classCfg.specialDamage); });
+    gameState.run.hp=Math.min(this.classCfg.maxHp,gameState.run.hp+1); // sereia se cura um pouco
+    this.cameras.main.flash(180,120,220,255);
   }
 
   moveEnemies(time){
@@ -1456,10 +1983,39 @@ class GameScene extends Phaser.Scene {
   tickProj(){
     const now=this.time.now;
     this.enemyProj.children.iterate(s=>{ if(s&&s.active&&now-s.getData("born")>4200) s.destroy(); });
-    this.playerProj.children.iterate(s=>{ if(s&&s.active){ s.rotation+=0.16; if(now-s.getData("born")>1600) s.destroy(); } });
+    this.playerProj.children.iterate(s=>{
+      if(!s||!s.active) return;
+      const kind=s.getData("kind"), age=now-s.getData("born");
+      if(kind==="boomerang"){
+        s.rotation+=0.45; // gira como bumerangue
+        if(s.getData("phase")==="out" && age>360) s.setData("phase","back");
+        if(s.getData("phase")==="back"){
+          const dx=this.player.x-s.x, dy=this.player.y-s.y, len=Math.hypot(dx,dy)||1;
+          s.setVelocity(dx/len*680, dy/len*680);
+          if(len<34){ s.destroy(); return; }   // voltou pra mão
+        }
+        if(age>2600) s.destroy();              // segurança
+      } else {
+        // projéteis retos: rotação fixa pela direção; vida curta
+        if(age>1100) s.destroy();
+      }
+    });
   }
 
-  onPlayerProjHit(shot,en){ if(!shot.active||!en.active) return; this.damageEnemy(en,shot.getData("dmg")||3); shot.destroy(); }
+  onPlayerProjHit(shot,en){
+    if(!shot.active||!en.active) return;
+    spawnFx(this,en.x,en.y-10,"anim_fx_impact",0.5,35);
+    if(shot.getData("kind")==="boomerang"){
+      // Atravessa: aplica dano com cooldown por inimigo (evita dano por frame)
+      const last=en.getData("lastBoomHit")||0;
+      if(this.time.now-last<280) return;
+      en.setData("lastBoomHit",this.time.now);
+      this.damageEnemy(en,shot.getData("dmg")||2);
+    } else {
+      this.damageEnemy(en,shot.getData("dmg")||3);
+      shot.destroy();
+    }
+  }
   onEnemyTouch(p,en){ if(!en.active) return; this.hurtPlayer(en.getData("damage")||1,`${en.getData("name")} encostou!`); }
   onEnemyProjHit(p,s){ if(!s.active) return; s.destroy(); this.hurtPlayer(1,"💔 Coração quebrado acertou!"); }
 
@@ -1490,13 +2046,35 @@ class GameScene extends Phaser.Scene {
     gameState.run.score+=en.getData("score")||50;
     gameState.run.mana=Math.min(this.classCfg.maxMana,gameState.run.mana+(boss?40:18));
     this.enemyKills+=1;
-    this.showMsg(boss?LEVELS[4].nextMessage:`${name} derrotado! 🎉`,1300);
+    this.showMsg(boss?(this.level===4?LEVELS[4].nextMessage:"💥 Chefe derrotado!"):`${name} derrotado! 🎉`,1300);
     const sh=en.getData("shadow"); if(sh?.active) sh.destroy();
     for(let i=0;i<(boss?36:10);i++) this.sparkle(en.x,en.y,boss?0xff6fb1:this.classCfg.attackColor,boss?150:60);
-    if(boss){ spawnFx(this,en.x,en.y,"anim_fx_heart",1.4,52); this.heartExplosion(en.x,en.y); }
+    if(boss){ spawnFx(this,en.x,en.y,"anim_fx_heart",1.4,52); this.heartExplosion(en.x,en.y); this.clearBossBar(); this.boss=null; }
     else { spawnFx(this,en.x,en.y,"anim_fx_explode",0.75,48); }
     if(!boss&&Phaser.Math.Between(0,100)>40) this.addCol(["morango","banana","marmita","coco"][Phaser.Math.Between(0,3)],en.x,en.y);
     en.destroy();
+    this.checkProgress(boss);
+  }
+
+  // Remove a barra de vida do chefe da tela
+  clearBossBar(){
+    [this.bossBar,this.bossBarBg,this.bossLabel].forEach(o=>{ if(o&&o.active) o.destroy(); });
+    this.bossBar=this.bossBarBg=this.bossLabel=null;
+  }
+
+  // Decide quando liberar o portal — fases com ondas só liberam após limpar tudo
+  checkProgress(boss){
+    if(this.useWaves){
+      if(this.enemies.countActive(true)>0) return;   // ainda há inimigos vivos
+      this.waveIndex++;
+      if(this.waveIndex<this.totalWaves){
+        this.time.delayedCall(900,()=>this.spawnWaveLvl1(this.waveIndex));
+      } else {
+        this.showMsg("✨ Todas as ondas derrotadas!",1600);
+        this.spawnPortal(1160,735);
+      }
+      return;
+    }
     if(this.level===2&&this.enemyKills>=this.enemyKillGoal) this.spawnPortal(1145,138);
     if(this.level===4&&boss) this.spawnPortal(640,420);
   }
@@ -1547,10 +2125,12 @@ class GameScene extends Phaser.Scene {
     vibrate(20); SoundFX.portal();
     const nextLevel = this.level+1;
     const isLast    = this.level>=4;
-    // Usa transition() (tween em retângulo) — evita bug de fadeOut de câmera persistir na próxima cena
-    this.transition(()=>{
+    // Método canônico do Phaser: fade de câmera + evento de conclusão.
+    // scene.start é chamado FORA do ciclo de tween → sem travamento nem tela preta.
+    this.cameras.main.fadeOut(450, 5, 3, 11);
+    this.cameras.main.once("camerafadeoutcomplete", ()=>{
       if(isLast) this.scene.start("FinalScene");
-      else       this.scene.restart({level:nextLevel});
+      else       this.scene.start("GameScene",{level:nextLevel});
     });
   }
 
@@ -1574,8 +2154,7 @@ class GameScene extends Phaser.Scene {
   }
 
   fadeIn(){
-    const c=this.add.rectangle(0,0,this.scale.width,this.scale.height,0x05030b,1).setOrigin(0).setScrollFactor(0).setDepth(3000);
-    this.tweens.add({targets:c,alpha:0,duration:450,onComplete:()=>c.destroy()});
+    this.cameras.main.fadeIn(450, 5, 3, 11);
   }
 
   dmgNum(x,y,txt){
@@ -1613,6 +2192,7 @@ class FinalScene extends Phaser.Scene {
 
   create(){
     setMobileControlsVisible(true);
+    this.cameras.main.resetFX();
     buildAllTextures(this); buildPlayerAnims(this); buildCatAnims(this); buildFxAnims(this);
     this.worldW=820; this.worldH=620;
     this.physics.world.setBounds(0,0,this.worldW,this.worldH);
@@ -1691,8 +2271,7 @@ class FinalScene extends Phaser.Scene {
   }
 
   fadeIn(){
-    const c=this.add.rectangle(0,0,this.scale.width,this.scale.height,0x05030b,1).setOrigin(0).setScrollFactor(0).setDepth(3000);
-    this.tweens.add({targets:c,alpha:0,duration:550,onComplete:()=>c.destroy()});
+    this.cameras.main.fadeIn(450, 5, 3, 11);
   }
 }
 
@@ -1707,4 +2286,4 @@ const phaserConfig={
   scene:[PreloaderScene,MenuScene,HowToScene,ClassSelectScene,GameScene,FinalScene]
 };
 
-window.addEventListener("load",()=>new Phaser.Game(phaserConfig));
+window.addEventListener("load",()=>{ window.game=new Phaser.Game(phaserConfig); });

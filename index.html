@@ -20,11 +20,25 @@
 
     <div class="action-pad" aria-label="Botões de ação">
       <button id="btn-special" class="game-button special" type="button">Especial</button>
+      <button id="btn-cat" class="game-button cat" type="button" aria-label="Mandar o gato atacar">🐱 Atacar</button>
       <button id="btn-dash" class="game-button dash" type="button">Dash</button>
       <button id="btn-attack" class="game-button attack" type="button">Atacar</button>
     </div>
   </section>
 
+  <!-- Captura erros de JS e mostra na tela (evita "tela preta" silenciosa) -->
+  <script>
+    window.addEventListener("error", (e)=>{
+      let box = document.getElementById("error-overlay");
+      if(!box){
+        box = document.createElement("div");
+        box.id = "error-overlay";
+        box.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:rgba(140,10,40,.95);color:#fff;font:13px/1.4 monospace;padding:12px 16px;max-height:40%;overflow:auto;white-space:pre-wrap";
+        document.body.appendChild(box);
+      }
+      box.textContent = "⚠ Erro: " + (e.message||e.error) + "\n" + (e.filename||"") + ":" + (e.lineno||"");
+    });
+  </script>
   <!-- Phaser via CDN. O jogo continua sem backend: basta abrir o index.html. -->
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
   <script src="game.js"></script>

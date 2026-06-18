@@ -97,8 +97,8 @@ canvas {
   position: absolute;
   right: max(14px, env(safe-area-inset-right));
   bottom: max(18px, env(safe-area-inset-bottom));
-  width: 184px;
-  height: 174px;
+  width: 200px;
+  height: 205px;
   pointer-events: auto;
 }
 
@@ -128,7 +128,7 @@ canvas {
   right: 0;
   bottom: 0;
   width: 96px;
-  height: 88px;
+  height: 84px;
   border-radius: 28px;
   font-size: 16px;
   background: linear-gradient(145deg, #ff7676, #ff3f8e);
@@ -136,15 +136,30 @@ canvas {
 
 .game-button.dash {
   left: 0;
-  bottom: 18px;
+  bottom: 0;
+  width: 84px;
   background: linear-gradient(145deg, #38d9ff, #2784ff);
 }
 
 .game-button.special {
-  right: 40px;
+  right: 0;
   top: 0;
   width: 104px;
   background: linear-gradient(145deg, #ffd166, #ff8f3d);
+}
+
+.game-button.cat {
+  left: 0;
+  top: 0;
+  width: 92px;
+  font-size: 13px;
+  background: linear-gradient(145deg, #c08bff, #8a4fe0);
+}
+
+.game-button.cat.on-cooldown {
+  opacity: 0.4;
+  filter: grayscale(0.7);
+  pointer-events: none;
 }
 
 @media (min-width: 900px) and (pointer: fine) {
