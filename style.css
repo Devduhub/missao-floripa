@@ -1,0 +1,171 @@
+:root {
+  --pink: #ff6fb1;
+  --pink-dark: #e94992;
+  --blue: #44d4ff;
+  --yellow: #ffe066;
+  --dark: #18172b;
+  --white: #fff8fb;
+  --shadow: rgba(10, 8, 28, 0.36);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #131326;
+  color: var(--white);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  touch-action: none;
+  user-select: none;
+}
+
+#game-shell,
+#game {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 0%, #35224f, #121223 66%);
+}
+
+canvas {
+  display: block;
+  width: 100vw !important;
+  height: 100dvh !important;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.hidden {
+  display: none !important;
+}
+
+#mobile-controls {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.joystick {
+  position: absolute;
+  left: max(18px, env(safe-area-inset-left));
+  bottom: max(26px, env(safe-area-inset-bottom));
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.04)),
+    rgba(13, 20, 42, 0.55);
+  border: 3px solid rgba(255, 255, 255, 0.36);
+  box-shadow: 0 14px 30px var(--shadow), inset 0 0 18px rgba(255, 255, 255, 0.12);
+  pointer-events: auto;
+  touch-action: none;
+  backdrop-filter: blur(8px);
+}
+
+.joystick::after {
+  content: "";
+  position: absolute;
+  inset: 31px;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 255, 255, 0.22);
+}
+
+.joystick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(145deg, var(--pink), #ff9dcc);
+  border: 3px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 10px 20px rgba(233, 73, 146, 0.32);
+}
+
+.action-pad {
+  position: absolute;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  width: 184px;
+  height: 174px;
+  pointer-events: auto;
+}
+
+.game-button {
+  position: absolute;
+  min-width: 78px;
+  min-height: 62px;
+  border: 0;
+  border-radius: 22px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.15);
+  box-shadow: 0 10px 20px var(--shadow), inset 0 -5px 0 rgba(0, 0, 0, 0.14), inset 0 3px 0 rgba(255, 255, 255, 0.28);
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.game-button:active,
+.game-button.is-pressed {
+  transform: translateY(4px) scale(0.98);
+  box-shadow: 0 5px 12px var(--shadow), inset 0 -2px 0 rgba(0, 0, 0, 0.14), inset 0 2px 0 rgba(255, 255, 255, 0.2);
+}
+
+.game-button.attack {
+  right: 0;
+  bottom: 0;
+  width: 96px;
+  height: 88px;
+  border-radius: 28px;
+  font-size: 16px;
+  background: linear-gradient(145deg, #ff7676, #ff3f8e);
+}
+
+.game-button.dash {
+  left: 0;
+  bottom: 18px;
+  background: linear-gradient(145deg, #38d9ff, #2784ff);
+}
+
+.game-button.special {
+  right: 40px;
+  top: 0;
+  width: 104px;
+  background: linear-gradient(145deg, #ffd166, #ff8f3d);
+}
+
+@media (min-width: 900px) and (pointer: fine) {
+  #mobile-controls {
+    display: none !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .joystick {
+    width: 118px;
+    height: 118px;
+  }
+
+  .joystick-knob {
+    width: 52px;
+    height: 52px;
+  }
+
+  .action-pad {
+    transform: scale(0.92);
+    transform-origin: right bottom;
+  }
+}

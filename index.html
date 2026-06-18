@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#ff6fb1" />
+  <title>Missão Floripa: A Nutri Aventureira</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main id="game-shell" aria-label="Missão Floripa: A Nutri Aventureira">
+    <div id="game"></div>
+  </main>
+
+  <!-- Controles mobile em HTML para ficarem grandes, confortáveis e fáceis de editar -->
+  <section id="mobile-controls" class="hidden" aria-label="Controles do jogo">
+    <div id="joystick" class="joystick" aria-label="Joystick virtual">
+      <div id="joystick-knob" class="joystick-knob"></div>
+    </div>
+
+    <div class="action-pad" aria-label="Botões de ação">
+      <button id="btn-special" class="game-button special" type="button">Especial</button>
+      <button id="btn-dash" class="game-button dash" type="button">Dash</button>
+      <button id="btn-attack" class="game-button attack" type="button">Atacar</button>
+    </div>
+  </section>
+
+  <!-- Phaser via CDN. O jogo continua sem backend: basta abrir o index.html. -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
