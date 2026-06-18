@@ -621,10 +621,15 @@ function buildPlayerAnims(scene) {
   const dirs  = ["Down","Up","Right_Down","Left_Down"];
   const names = ["down","up","right","left"];
   dirs.forEach((d,i) => {
-    if (scene.textures.exists("fa_walk_"+names[i]))
-      scene.anims.create({ key:"player_walk_"+names[i], frames:scene.anims.generateFrameNumbers("fa_walk_"+names[i],{start:0,end:5}), frameRate:9, repeat:-1 });
-    if (scene.textures.exists("fa_idle_"+names[i]))
-      scene.anims.create({ key:"player_idle_"+names[i], frames:scene.anims.generateFrameNumbers("fa_idle_"+names[i],{start:0,end:0}), frameRate:1, repeat:-1 });
+    const walkTex = "fa_walk_"+names[i];
+    if (scene.textures.exists(walkTex)) {
+      // 8 frames por tira (0-7), frame de 48px
+      scene.anims.create({ key:"player_walk_"+names[i], frames:scene.anims.generateFrameNumbers(walkTex,{start:0,end:7}), frameRate:11, repeat:-1 });
+    }
+    const idleTex = "fa_idle_"+names[i];
+    if (scene.textures.exists(idleTex)) {
+      scene.anims.create({ key:"player_idle_"+names[i], frames:scene.anims.generateFrameNumbers(idleTex,{start:0,end:7}), frameRate:6, repeat:-1 });
+    }
     const dk = "fa_dash_"+names[i];
     if (scene.textures.exists(dk))
       scene.anims.create({ key:"player_dash_"+names[i], frames:scene.anims.generateFrameNumbers(dk,{start:0,end:-1}), frameRate:14, repeat:0 });
@@ -708,15 +713,18 @@ class PreloaderScene extends Phaser.Scene {
     this.load.image("prop_wardrobe", "prop_wardrobe.png");
     this.load.image("prop_box",      "prop_box.png");
     this.load.image("prop_mess",     "prop_mess.png");
-    this.load.spritesheet("fa_idle_down",  NC+"Idle_Down.png",       {frameWidth:64,frameHeight:64});
-    this.load.spritesheet("fa_idle_up",    NC+"Idle_Up.png",         {frameWidth:64,frameHeight:64});
-    this.load.spritesheet("fa_idle_right", NC+"Idle_Right_Down.png",  {frameWidth:64,frameHeight:64});
-    this.load.spritesheet("fa_idle_left",  NC+"Idle_Left_Down.png",   {frameWidth:64,frameHeight:64});
-    this.load.spritesheet("fa_walk_down",  NC+"walk_Down.png",        {frameWidth:64,frameHeight:64});
-    this.load.spritesheet("fa_walk_up",    NC+"walk_Up.png",          {frameWidth:64,frameHeight:64});
-    this.load.spritesheet("fa_walk_right", NC+"walk_Right_Down.png",  {frameWidth:64,frameHeight:64});
-    this.load.spritesheet("fa_walk_left",  NC+"walk_Left_Down.png",   {frameWidth:64,frameHeight:64});
-    this.load.spritesheet("fa_death_down", NC+"death_Down.png",       {frameWidth:64,frameHeight:64});
+    // IMPORTANTE: cada frame tem 48px de largura × 64 de altura (8 frames por tira).
+    // Carregar como 64 fazia o Phaser pegar pedaços de 2 personagens → duplicação e "teletransporte".
+    const FW=48, FH=64;
+    this.load.spritesheet("fa_idle_down",  NC+"Idle_Down.png",        {frameWidth:FW,frameHeight:FH});
+    this.load.spritesheet("fa_idle_up",    NC+"Idle_Up.png",          {frameWidth:FW,frameHeight:FH});
+    this.load.spritesheet("fa_idle_right", NC+"Idle_Right_Down.png",  {frameWidth:FW,frameHeight:FH});
+    this.load.spritesheet("fa_idle_left",  NC+"Idle_Left_Down.png",   {frameWidth:FW,frameHeight:FH});
+    this.load.spritesheet("fa_walk_down",  NC+"walk_Down.png",        {frameWidth:FW,frameHeight:FH});
+    this.load.spritesheet("fa_walk_up",    NC+"walk_Up.png",          {frameWidth:FW,frameHeight:FH});
+    this.load.spritesheet("fa_walk_right", NC+"walk_Right_Down.png",  {frameWidth:FW,frameHeight:FH});
+    this.load.spritesheet("fa_walk_left",  NC+"walk_Left_Down.png",   {frameWidth:FW,frameHeight:FH});
+    this.load.spritesheet("fa_death_down", NC+"death_Down.png",       {frameWidth:FW,frameHeight:FH});
 
     // ── Gato (320×32 → 10 frames de 32px) ──────────────────────────────────
     this.load.spritesheet("cat_real", "cat/CatPackFree/Idle.png", {frameWidth:32,frameHeight:32});
@@ -919,10 +927,12 @@ class GameScene extends Phaser.Scene {
 
     this.requiredItems=new Set(); this.collectedRequired=new Set();
     this.enemyKillGoal=0; this.enemyKills=0; this.portalSpawned=false;
+    this.physics.resume(); // garante que física nunca fica pausada entre fases
     this.gameOver=false; this.lastDir=new Phaser.Math.Vector2(0,1);
     this.facing="down"; this.nextAttackAt=0; this.nextDashAt=0;
     this.invulnerableUntil=0; this.speedBoostUntil=0; this.attackId=0; this.boss=null;
-    this._wasMoving=false;
+    this.transitioning=false;
+    this._wasMoving=false; this._pendingFacing=null; this._pendingFrames=0;
 
     this.buildBackground();
 
@@ -934,15 +944,13 @@ class GameScene extends Phaser.Scene {
     this.enemyProj    =this.physics.add.group();
     this.playerProj   =this.physics.add.group();
 
-    // Determina textura do player
-    const playerTex = this.textures.exists("fa_idle_down") ? "fa_idle_down" : "player";
-    // Escala 3x: sprites são 64×64 mas o personagem ocupa ~22px dentro deles
-    // Escala 3 deixa o personagem com ~66px visíveis na tela
+    // Determina textura do player (usa walk_down direto: idle e walk compartilham essa textura)
+    const playerTex = this.textures.exists("fa_walk_down") ? "fa_walk_down" : "player";
     this.player=this.physics.add.sprite(110,120,playerTex).setDepth(20).setScale(3);
     this.playerShadow = this.add.ellipse(this.player.x, this.player.y + 24, 30, 10, 0x000000, 0.25).setDepth(19);
     this.player.setCollideWorldBounds(true);
-    // Body pequeno e centralizado: reduz travamento em cantos de obstáculos
-    this.player.body.setSize(12, 12).setOffset(26, 38);
+    // Body pequeno centralizado no personagem (frame 48×64, personagem em x≈23, pés em y≈42)
+    this.player.body.setSize(12, 14).setOffset(17, 30);
     if(this.anims.exists("player_idle_down")) this.player.play("player_idle_down");
 
     // PET GATO — agora com posição correta
@@ -1301,28 +1309,25 @@ class GameScene extends Phaser.Scene {
     // Direção só é redefinida ao INICIAR o movimento (saindo do idle)
     // Enquanto em movimento contínuo, a direção fica travada — elimina troca
     // de sprite sheet durante o movimento e o salto visual resultante
+    // Direção pelo eixo dominante. Esquerda = right espelhado (sem troca de textura esq/dir)
     if(moving){
-      if(!this._wasMoving){
-        // Acabou de começar a mover: define direção pelo vetor atual
-        const absX=Math.abs(x), absY=Math.abs(y);
-        if(absX >= absY) this.facing = x>0 ? "right" : "left";
-        else             this.facing = y>0 ? "down"  : "up";
-      }
+      const absX=Math.abs(x), absY=Math.abs(y);
+      this.facing = absX > absY ? (x>0?"right":"left") : (y>0?"down":"up");
       this._wasMoving=true;
-      // Garante que a animação de walk certa está tocando (sem mudar durante mov)
-      const ak="player_walk_"+this.facing;
-      if(this.anims.exists(ak) && this.player.anims.currentAnim?.key!==ak)
-        this.player.play(ak,true);
-      else if(!this.anims.exists(ak))
-        this.player.rotation=Math.sin(time/90)*0.045;
+      const facingTex = this.facing==="left" ? "right" : this.facing;
+      this.player.setFlipX(this.facing==="left");
+      const ak="player_walk_"+facingTex;
+      if(this.anims.exists(ak)){
+        if(this.player.anims.currentAnim?.key!==ak) this.player.play(ak,true);
+      } else this.player.rotation=Math.sin(time/90)*0.045;
     } else {
       this._wasMoving=false;
-      // Parado: idle da direção atual
-      const ik="player_idle_"+this.facing;
-      if(this.anims.exists(ik) && this.player.anims.currentAnim?.key!==ik)
-        this.player.play(ik,true);
-      else if(!this.anims.exists(ik))
-        this.player.rotation=0;
+      const facingTex = this.facing==="left" ? "right" : this.facing;
+      this.player.setFlipX(this.facing==="left");
+      const ik="player_idle_"+facingTex;
+      if(this.anims.exists(ik)){
+        if(this.player.anims.currentAnim?.key!==ik) this.player.play(ik,true);
+      } else this.player.rotation=0;
     }
 
     // Animação de dash tem prioridade sobre walk
@@ -1538,16 +1543,14 @@ class GameScene extends Phaser.Scene {
   onPortalEnter(p,portal){
     if(!this.portalSpawned||this.transitioning) return;
     this.transitioning=true;
-    this.physics.pause();
     this.player.setVelocity(0,0);
     vibrate(20); SoundFX.portal();
     const nextLevel = this.level+1;
     const isLast    = this.level>=4;
-    // Fade visual + timer direto: não depende de evento de câmera
-    this.cameras.main.fadeOut(480, 5, 3, 11);
-    this.time.delayedCall(530, ()=>{
+    // Usa transition() (tween em retângulo) — evita bug de fadeOut de câmera persistir na próxima cena
+    this.transition(()=>{
       if(isLast) this.scene.start("FinalScene");
-      else       this.scene.start("GameScene",{level:nextLevel});
+      else       this.scene.restart({level:nextLevel});
     });
   }
 
@@ -1618,10 +1621,10 @@ class FinalScene extends Phaser.Scene {
     g.fillGradientStyle(0x05050d,0x080817,0x17122a,0x080817,1); g.fillRect(0,0,this.worldW,this.worldH);
     for(let i=0;i<60;i++){ g.fillStyle(0xffffff,Phaser.Math.FloatBetween(0.1,0.7)); g.fillCircle(Phaser.Math.Between(0,this.worldW),Phaser.Math.Between(0,this.worldH),Phaser.Math.Between(1,3)); }
 
-    const ptex=this.textures.exists("fa_idle_down")?"fa_idle_down":"player";
-    this.player=this.physics.add.sprite(140,500,ptex).setDepth(10);
+    const ptex=this.textures.exists("fa_walk_down")?"fa_walk_down":"player";
+    this.player=this.physics.add.sprite(140,500,ptex).setDepth(10).setScale(3);
     this.player.setCollideWorldBounds(true);
-    this.player.body.setSize(28,34).setOffset(18,26);
+    this.player.body.setSize(12,14).setOffset(17,30);
     if(this.anims.exists("player_idle_down")) this.player.play("player_idle_down");
 
     this.chest=this.physics.add.staticSprite(410,285,"chest").setDepth(9);
