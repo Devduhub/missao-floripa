@@ -1,0 +1,17 @@
+# Arquivos de fonte / scripts de build (não precisam ir pro servidor)
+*.aseprite
+build_furniture.py
+build_nutri_sprite.py
+Jogar.bat
+
+# Pastas de assets NÃO usadas no jogo
+Sprout-Lands-UI-0.2.0/
+The Female Adventurer - Free/
+
+# Frames soltos do Super Pixel Effects (o jogo usa só o spritesheet)
+Super Pixel Effects Gigapack (Free Version)/PNG/
+
+# Lixo do macOS extraído de zips
+**/__MACOSX/
+**/.DS_Store
+.DS_Store
