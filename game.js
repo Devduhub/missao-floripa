@@ -2249,14 +2249,10 @@ class GameScene extends Phaser.Scene {
   onEnemyProjHit(p, s) { if (!s.active) return; s.destroy(); this.hurtPlayer(1, "💔 Coração quebrado acertou!"); }
 
   hurtPlayer(amount, msg) {
-    const now = this.time.now; if (now < this.invulnerableUntil) return;
-    this.invulnerableUntil = now + 900;
-    gameState.run.hp = Math.max(0, gameState.run.hp - amount);
-    vibrate(40); SoundFX.hit(); this.cameras.main.shake(160, 0.01);
+    // imortal — só pisca, não perde vida
+    this.cameras.main.shake(80, 0.005);
     this.player.setTint(0xff6b6b);
     this.time.delayedCall(130, () => { if (this.player?.active) this.player.clearTint(); });
-    this.showMsg(msg, 900); this.updateHUD();
-    if (gameState.run.hp <= 0) this.showDefeat();
   }
 
   damageEnemy(en, amount) {
