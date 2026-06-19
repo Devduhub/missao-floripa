@@ -13,21 +13,21 @@ const CLASS_CONFIGS = {
     joke: "Arremessa lâminas de cenoura afiadas. Rápida e certeira.",
     weaponDesc: "Espada de cenoura: lâmina veloz em linha reta.",
     attackColor: 0xff8a3d, trailColor: 0xffb86b, speed: 205, dashSpeed: 560, maxHp: 7, maxMana: 100,
-    attackDamage: 2.4, attackCooldown: 300, specialDamage: 4, specialStyle: "cenoura"
+    attackDamage: 5.0, attackCooldown: 300, specialDamage: 8, specialStyle: "cenoura"
   },
   estrategista: {
     name: "Nutri Estrategista", short: "Estrategista", weapon: "clipboard", weaponEmoji: "📋",
     joke: "Lança a prancheta giratória que volta pra mão. Atravessa tudo.",
     weaponDesc: "Prancheta-bumerangue: gira, atravessa inimigos e volta.",
     attackColor: 0x4fe39a, trailColor: 0xbfffe0, speed: 196, dashSpeed: 540, maxHp: 6, maxMana: 120,
-    attackDamage: 1.8, attackCooldown: 560, specialDamage: 5, specialStyle: "marmita"
+    attackDamage: 3.5, attackCooldown: 560, specialDamage: 9, specialStyle: "marmita"
   },
   sereia: {
     name: "Sereia de Floripa", short: "Sereia", weapon: "trident", weaponEmoji: "🔱",
     joke: "Tridente que cospe rajadas d'água em sequência. Hidratação ofensiva.",
     weaponDesc: "Tridente: rajada rápida de 3 jatos d'água.",
     attackColor: 0x44d4ff, trailColor: 0x9fe8ff, speed: 218, dashSpeed: 650, maxHp: 6, maxMana: 110,
-    attackDamage: 1.2, attackCooldown: 230, specialDamage: 4.3, specialStyle: "agua"
+    attackDamage: 2.5, attackCooldown: 230, specialDamage: 8, specialStyle: "agua"
   }
 };
 
@@ -1727,8 +1727,8 @@ class GameScene extends Phaser.Scene {
       hamburger: { tex: "hamburger", real: "fi_burger", name: "🍔 Hambúrguer Malvado", hp: 5.2, sp: 86, dmg: 1, sc: 110 },
       brigadeiro: { tex: "brigadeiro", real: "fi_cake", name: "🎂 Bolo de Chocolate Rebelde", hp: 4.2, sp: 98, dmg: 1, sc: 100 },
       crab: { tex: "crab", real: "fi_dump", name: "🥟 Bolinho do Glúten", hp: 4.4, sp: 116, dmg: 1, sc: 95 },
-      boss: { tex: "saudadeBoss", real: "fi_pizza", name: "🍕 Pizza Monstro da Saudade", hp: 32, sp: 74, dmg: 1, sc: 900, boss: true },
-      maromba: { tex: "boss_maromba", real: null, name: "💪 Marombeiro da Saudade", hp: 26, sp: 84, dmg: 1, sc: 700, boss: true }
+      boss: { tex: "saudadeBoss", real: "fi_pizza", name: "🍕 Pizza Monstro da Saudade", hp: 16, sp: 74, dmg: 1, sc: 900, boss: true },
+      maromba: { tex: "boss_maromba", real: null, name: "💪 Marombeiro da Saudade", hp: 12, sp: 84, dmg: 1, sc: 700, boss: true }
     }[type];
     if (!D) return null;
 
