@@ -66,8 +66,14 @@ function vibrate(ms = 18) { if (navigator.vibrate) navigator.vibrate(ms); }
 const SoundFX = {
   ctx: null, unlocked: false,
   unlock() {
-    if (this.unlocked) return;
-    try { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; this.ctx = this.ctx || new AC(); if (this.ctx.state === "suspended") this.ctx.resume(); this.unlocked = true; } catch (e) { }
+    if (this.unlocked) return Promise.resolve();
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return Promise.resolve();
+      this.ctx = this.ctx || new AC();
+      const p = this.ctx.state === "suspended" ? this.ctx.resume() : Promise.resolve();
+      return p.then(() => { this.unlocked = true; }).catch(() => {});
+    } catch (e) { return Promise.resolve(); }
   },
   tone(freq = 440, dur = 0.08, type = "sine", gain = 0.035) {
     try { this.unlock(); if (!this.ctx) return; const o = this.ctx.createOscillator(), a = this.ctx.createGain(); o.type = type; o.frequency.value = freq; a.gain.value = gain; o.connect(a); a.connect(this.ctx.destination); o.start(); a.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur); o.stop(this.ctx.currentTime + dur + 0.02); } catch (e) { }
@@ -91,7 +97,6 @@ const Music = {
   bass:   [262,0,0,0,  196,0,0,0,  220,0,0,0,  247,0,0,0,
            175,0,0,0,  196,0,0,0,  262,0,0,0,  196,0,0,0],
   start() {
-    SoundFX.unlock();
     if (!SoundFX.ctx || this.playing || !this.on) return;
     this.playing = true; this._loop();
   },
@@ -118,7 +123,7 @@ const Music = {
   stop() { this.playing = false; if (this.timer) { clearTimeout(this.timer); this.timer = null; } },
   toggle() {
     this.on = !this.on;
-    if (this.on) this.start(); else this.stop();
+    if (this.on) SoundFX.unlock().then(() => this.start()); else this.stop();
     const btn = document.getElementById("btn-sound");
     if (btn) btn.textContent = this.on ? "🔊" : "🔇";
     return this.on;
@@ -156,7 +161,7 @@ window.addEventListener("DOMContentLoaded", () => {
     btn.addEventListener("pointerup", up); btn.addEventListener("pointercancel", up); btn.addEventListener("pointerleave", up);
   };
   wire(btnA, "attack"); wire(btnD, "dash"); wire(btnS, "special"); wire(btnCat, "catAttack");
-  document.body.addEventListener("pointerdown", () => { SoundFX.unlock(); Music.start(); }, { passive: true });
+  document.body.addEventListener("pointerdown", () => { SoundFX.unlock().then(() => Music.start()); }, { passive: true });
   // Botão liga/desliga som
   const btnSound = document.getElementById("btn-sound");
   if (btnSound) btnSound.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); Music.toggle(); });
